@@ -64,7 +64,7 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
         transparent: true, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending,
         uniforms: { c: { value: new THREE.Color(0xff5b1f) } },
         vertexShader: `varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.); vV = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }`,
-        fragmentShader: `uniform vec3 c; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 3.0); gl_FragColor = vec4(c, f*0.55); }`,
+        fragmentShader: `uniform vec3 c; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(vN, vV)), 4.0); gl_FragColor = vec4(c, f*0.28); }`,
       }),
     );
     scene.add(rim);

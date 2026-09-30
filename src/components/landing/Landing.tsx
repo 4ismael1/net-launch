@@ -101,7 +101,7 @@ export function Landing({ data }: { data: LandingData }) {
       <div className="pointer-events-none fixed inset-0 z-0"><GlobeStage ref={globe} pads={data.pads} /></div>
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,var(--color-bg)_95%)]" />
 
-      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between px-5 py-4 md:px-8">
+      <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-bg via-bg/85 to-transparent px-5 pt-4 pb-8 md:px-8">
         <Logo />
         <Link href="/panel" className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line-strong bg-bg/60 px-3.5 text-sm backdrop-blur hover:bg-surface-2">
           Ir a la plataforma <ArrowRight className="size-4" />
@@ -142,7 +142,7 @@ export function Landing({ data }: { data: LandingData }) {
         {fragments.map((f, i) => (
           <span key={f + i} data-frag
             className="absolute rounded-md border border-line bg-surface/85 px-3 py-1.5 font-mono text-xs whitespace-nowrap text-fg-muted backdrop-blur"
-            style={{ left: `${6 + seeded(i) * 82}%`, top: `${36 + seeded(i + 50) * 52}%` }}>
+            style={{ left: `${6 + seeded(i) * 82}%`, top: `${48 + seeded(i + 50) * 44}%` }}>
             {f}
           </span>
         ))}
@@ -156,10 +156,10 @@ export function Landing({ data }: { data: LandingData }) {
       {/* 3 · Recorrido por el planeta */}
       <section data-tour className="relative z-10">
         {data.stops.map((s) => (
-          <div key={s.id} data-stop data-lat={s.lat} data-lng={s.lng} className="flex min-h-dvh items-center px-5 md:justify-end md:px-12 lg:px-20">
+          <div key={s.id} data-stop data-lat={s.lat} data-lng={s.lng} className="flex min-h-dvh items-end px-5 pb-10 md:items-center md:justify-end md:px-12 md:pb-0 lg:px-20">
             <div data-card className="w-full max-w-sm rounded-lg border border-line bg-surface/85 p-5 backdrop-blur">
               <p className="label mb-1">{s.region}</p>
-              <h3 className="text-2xl font-semibold tracking-tight">{s.name}</h3>
+              <h3 className="text-xl font-semibold tracking-tight md:text-2xl">{s.name}</h3>
               <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line bg-line">
                 <div className="bg-surface p-3"><p className="label">Lanzamientos</p><p className="num mt-1 text-2xl">{nf.format(s.total)}</p></div>
                 <div className="bg-surface p-3"><p className="label">Programados</p><p className="num mt-1 text-2xl text-accent">{s.upcoming}</p></div>
