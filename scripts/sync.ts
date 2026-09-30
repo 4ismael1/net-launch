@@ -104,12 +104,19 @@ async function paged(client: LL2Client, path: string, params: Record<string, str
 }
 
 async function main() {
+  // --reset-cursors: vuelve a cargar próximos, catálogo e histórico desde cero (sobrescribe, no borra).
+  if (process.argv.includes("--reset-cursors")) {
+    await setState("incremental_since", "");
+    await setState("catalog_at", 0);
+    await setState("backfill", { offset: 0, done: false });
+    say("cursores reiniciados");
+  }
   const [run] = await db.insert(schema.syncRuns).values({}).returning();
   const now = Date.now();
   let upserted = 0;
 
   // Ventana deslizante de 1 h con las peticiones de ejecuciones anteriores.
-  const history = (await getState<number[]>("ll2_request_log", [])).filter((t) => now - t < 3600_000);
+  const history = (await getState<number[]>(`ll2_request_log:${new URL(BASE).host}`, [])).filter((t) => now - t < 3600_000);
   const budget = Math.max(0, PER_HOUR - history.length);
   const client = new LL2Client(BASE, budget);
   say(`LL2 ${BASE} · presupuesto ${budget}/${PER_HOUR}`);
@@ -178,7 +185,7 @@ async function main() {
     }
   }
 
-  await setState("ll2_request_log", [...history, ...Array(client.requests).fill(now)]);
+  await setState(`ll2_request_log:${new URL(BASE).host}`, [...history, ...Array(client.requests).fill(now)]);
   await db
     .update(schema.syncRuns)
     .set({ finishedAt: new Date(), ok, requests: client.requests, launchesUpserted: upserted, log })
