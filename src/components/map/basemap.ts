@@ -36,3 +36,14 @@ export function neutralizeBasemap(map: MLMap, own: string[] = []) {
     }
   }
 }
+
+/** Textos de MapLibre en español. */
+export const MAP_LOCALE = {
+  "CooperativeGesturesHandler.WindowsHelpText": "Usa Ctrl + rueda del ratón para hacer zoom",
+  "CooperativeGesturesHandler.MacHelpText": "Usa ⌘ + rueda del ratón para hacer zoom",
+  "CooperativeGesturesHandler.MobileHelpText": "Usa dos dedos para mover el mapa",
+  "NavigationControl.ZoomIn": "Acercar",
+  "NavigationControl.ZoomOut": "Alejar",
+  "NavigationControl.ResetBearing": "Orientar al norte",
+  "AttributionControl.ToggleAttribution": "Mostrar atribución",
+};

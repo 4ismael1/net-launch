@@ -333,7 +333,7 @@ export function Landing({ data }: { data: LandingData }) {
                 </div>
               )}
             </Feature>
-            <Feature href="/en-el-espacio" icon={Orbit} title="Órbitas" text="Objetos catalogados tras cada lanzamiento y estaciones, con posición calculada (SGP4)." className="md:col-span-2" />
+            <Feature href="/satelites" icon={Orbit} title="Satélites" text="Starlink, GPS, Galileo, meteorológicos, estaciones… en 3D, con traza y «¿cuándo pasa sobre mí?»." className="md:col-span-2" />
             <Feature href="/lanzamientos" icon={Radio} title="Transmisiones" text="Webcasts oficiales diferenciados de las retransmisiones independientes." className="md:col-span-2" />
             <Feature href="/bases" icon={CloudSun} title="Clima en la plataforma" text="Condiciones actuales y pronóstico a la hora prevista, como contexto." className="md:col-span-2" />
             <Feature href="/organizaciones" icon={Building2} title="Organizaciones" text="Agencias y empresas de todo el mundo, sin privilegiar a las famosas." className="md:col-span-2" />

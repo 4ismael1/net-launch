@@ -13,7 +13,7 @@ import { Flag } from "@/components/ui/Flag";
 import { StatusBadge } from "@/components/launch/StatusBadge";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { Countdown } from "@/components/launch/Countdown";
-import { neutralizeBasemap } from "./basemap";
+import { neutralizeBasemap, MAP_LOCALE } from "./basemap";
 
 type View = "all" | "upcoming" | "recent";
 type Activity = { slug: string; name: string; net: string | null; net_precision: string | null; status_abbrev: string | null; provider: string | null; rocket: string | null; kind: "upcoming" | "recent" };
@@ -92,7 +92,7 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
       if (cancelled || !el.current) return;
       setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
       map = new Map({
-        container: el.current,
+        container: el.current, locale: MAP_LOCALE,
         style: STYLES.dark,
         center: [0, 20],
         zoom: 1.4,

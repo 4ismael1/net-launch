@@ -2,7 +2,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
-import { neutralizeBasemap } from "./basemap";
+import { neutralizeBasemap, MAP_LOCALE } from "./basemap";
 
 const KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 const STYLE = KEY ? `https://api.maptiler.com/maps/hybrid/style.json?key=${KEY}` : "https://tiles.openfreemap.org/styles/dark";
@@ -17,7 +17,7 @@ export function MiniMap({ lat, lng, label }: { lat: number; lng: number; label: 
       if (cancelled || !el.current) return;
       setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
       map = new Map({
-        container: el.current,
+        container: el.current, locale: MAP_LOCALE,
         style: STYLE,
         center: [lng, lat],
         zoom: KEY ? 14 : 9,

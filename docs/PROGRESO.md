@@ -1,10 +1,11 @@
 # PROGRESO
 
 ## Estado actual
-- **Hecho:** F1–F9. Datos + sync (GitHub Actions), diseño/layout, panel, mapa, misión, explorador + Ctrl+K, organizaciones/bases/vehículos, eventos + en el espacio (instantáneas LL2 cada 3 h), estadísticas (ECharts + HHI), clima (Open-Meteo), órbitas (CelesTrak + SGP4 + visor Three.js propio).
-- **Siguiente paso exacto:** verificar que `next build` pasa → F10 landing 3D con scroll (reutilizar el globo de `OrbitViewer`: continentes Natural Earth, sin texturas descargadas) → F11 (metodología, noticias SNAPI, deploy en Vercel, PostHog/Sentry, QA responsive/a11y).
-- Paleta: grafito cálido, sin azul/morado. Éxito = gris `#9c988e` y fallo = rojo `#ff4d4f` en las gráficas (validado para daltonismo).
-- Traducción: `gemini-flash-lite-latest`, máx. 6 peticiones/ejecución.
+- **Hecho:** F1–F10 + módulo Satélites. Build de producción OK (`npx next build`, ~10 s).
+- **Satélites** (`/satelites`): 19 grupos CelesTrak (estaciones, Starlink, OneWeb, Kuiper, GPS, Galileo, BeiDou, GLONASS, meteorológicos, NOAA, ciencia, CubeSats…), búsqueda en todo el catálogo, globo 3D de constelaciones (SGP4 cada 2 s), tabla filtrable, ficha por NORAD (posición en vivo, traza en el mapa, órbita 3D, elementos, SATCAT, enlace a su lanzamiento) y «¿cuándo pasa sobre mí?» (72 h, visibilidad a simple vista).
+- **Landing:** capítulos + progreso, hero que cabe en una pantalla, cinta de próximos, pilares de la tesis, recorrido fijado con paradas discretas y resaltado en el globo, encaje global del scroll (Lenis), galería de menos conocidos, pie completo.
+- **Siguiente paso exacto:** F11 → deploy en Vercel (el usuario crea la cuenta), respaldo del cron (el cron programado de GitHub aún no se dispara solo; el manual sí funciona), PostHog/Sentry, QA responsive/a11y, clave de MapTiler.
+- **Ojo:** importar SGP4 SIEMPRE desde `@/lib/sgp4` (el índice de satellite.js carga WASM y cuelga el build). Los contenedores de MapLibre necesitan la altura del flujo (MapLibre fuerza position:relative).
 
 ## Hecho en F1
 - Next.js 16.3 + TS + Tailwind v4 (en la raíz). Ojo: leer `node_modules/next/dist/docs/` antes de usar APIs de Next (AGENTS.md).

@@ -108,7 +108,7 @@ async function StationsOrbit() {
   if (!gp.length) return null;
   return (
     <Card className="overflow-hidden">
-      <CardHeader title="Estaciones ahora" meta="ISS · Tiangong" />
+      <CardHeader title="Estaciones ahora" meta="ISS · Tiangong" action={<Link href="/satelites" className="text-xs text-fg-muted hover:text-fg">Todos los satélites →</Link>} />
       <OrbitViewer objects={gp} height={420} />
     </Card>
   );

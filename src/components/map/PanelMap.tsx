@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { Map as MLMap } from "maplibre-gl";
-import { neutralizeBasemap } from "./basemap";
+import { neutralizeBasemap, MAP_LOCALE } from "./basemap";
 
 type Pt = { id: number; name: string; lat: number; lng: number; location_name: string | null; total: number | null; upcoming: number };
 
@@ -25,7 +25,7 @@ export function PanelMap({ points }: { points: Pt[] }) {
       if (cancelled || !el.current) return;
       setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
       map = new Map({
-        container: el.current, style: STYLE, center: [10, 22], zoom: 0.55, minZoom: 0, maxZoom: 6,
+        container: el.current, locale: MAP_LOCALE, style: STYLE, center: [10, 22], zoom: 0.55, minZoom: 0, maxZoom: 6,
         attributionControl: false, renderWorldCopies: false, cooperativeGestures: true,
       });
       map.addControl(new AttributionControl({ compact: true }), "bottom-left");
