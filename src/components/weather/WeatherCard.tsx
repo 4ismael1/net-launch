@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { Info, Navigation } from "lucide-react";
 import { getWeather, wmoLabel, windDir } from "@/lib/weather";
 import { Card, CardHeader } from "@/components/ui/Card";
@@ -7,6 +8,7 @@ const f1 = (v: number | null, u: string) => (v == null ? "—" : `${v.toLocaleSt
 
 /** Clima contextual (Open-Meteo). Si el servicio falla, no se renderiza nada. */
 export async function WeatherCard({ lat, lng, place, t0 }: { lat: number; lng: number; place: string; t0?: string | null }) {
+  await connection(); // se resuelve al visitar la página (no en el build): datos meteorológicos actuales
   const w = await getWeather(lat, lng, t0 ?? null);
   if (!w) return null;
   const c = w.current;

@@ -8,6 +8,7 @@ import { Flag } from "@/components/ui/Flag";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { countryName } from "@/lib/format";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getStationsGP } from "@/lib/orbit";
 import { OrbitViewer } from "@/components/orbit/OrbitViewer";
 
@@ -104,6 +105,7 @@ export default async function Page() {
 }
 
 async function StationsOrbit() {
+  await connection();
   const gp = await getStationsGP();
   if (!gp.length) return null;
   return (

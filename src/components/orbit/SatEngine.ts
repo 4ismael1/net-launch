@@ -77,6 +77,8 @@ export class SatEngine {
   setSatellites(list: EngineSat[], keepNorad?: number | null) {
     this.sats = list;
     const n = list.length;
+    this.cursor = 0; // la lista puede encoger (al desmarcar un grupo): nunca apuntar fuera de rango
+    this.selected = -1;
     this.recs = list.map((s) => { try { return json2satrec(s.omm as never) as SatRec; } catch { return null; } });
     this.anchor = new Float32Array(n * 3);
     this.vel = new Float32Array(n * 3);
@@ -154,7 +156,7 @@ export class SatEngine {
     const n = this.sats.length;
     // Re-anclaje escalonado: cada satélite pasa por SGP4 aproximadamente una vez por segundo
     const batch = Math.min(n, Math.max(40, Math.ceil((n / 60) * Math.min(this.warp, 20))));
-    for (let k = 0; k < batch && n; k++) { this.reanchor(this.cursor, now); this.cursor = (this.cursor + 1) % n; }
+    for (let k = 0; k < batch && n; k++) { this.cursor %= n; this.reanchor(this.cursor, now); this.cursor = (this.cursor + 1) % n; }
     for (let i = 0; i < n; i++) {
       const dt = (now - this.tAnchor[i]) / 1000, j = i * 3;
       this.pos[j] = this.anchor[j] + this.vel[j] * dt;

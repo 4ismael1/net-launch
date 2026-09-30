@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { CalendarPlus, ChevronRight, ExternalLink, MapPin, Play, ShieldCheck, Info, Orbit } from "lucide-react";
 import { getLaunchDetail, getPrerenderSlugs, type LaunchDetail } from "@/lib/data/launch-detail";
@@ -16,7 +17,7 @@ import { NewsRows } from "@/components/news/NewsList";
 import { countryName, netLabel, padName, statusInfo } from "@/lib/format";
 
 export async function generateStaticParams() {
-  return (await getPrerenderSlugs(30)).map((slug) => ({ slug }));
+  return (await getPrerenderSlugs(12)).map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/lanzamientos/[slug]">): Promise<Metadata> {
@@ -352,6 +353,7 @@ function Updates({ d }: { d: LaunchDetail }) {
 }
 
 async function RelatedNews({ id }: { id: string }) {
+  await connection(); // noticias al visitar, no durante el build
   const items = await getLaunchNews(id);
   if (!items?.length) return null;
   return (
