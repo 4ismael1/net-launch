@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { CalendarPlus, ChevronRight, ExternalLink, MapPin, Play, ShieldCheck, Info, Orbit } from "lucide-react";
 import { getLaunchDetail, getPrerenderSlugs, type LaunchDetail } from "@/lib/data/launch-detail";
 import { Card, CardHeader } from "@/components/ui/Card";
@@ -31,9 +31,9 @@ export async function generateMetadata({ params }: PageProps<"/lanzamientos/[slu
 
 export default function LaunchPage({ params }: PageProps<"/lanzamientos/[slug]">) {
   return (
-    <Suspense fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
+    <Streamed fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
       <LaunchContent params={params} />
-    </Suspense>
+    </Streamed>
   );
 }
 
@@ -136,7 +136,7 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
           <Streams d={d} />
           {d.timeline.length > 0 && <Timeline d={d} />}
           {d.updates.length > 0 && <Updates d={d} />}
-          <Suspense fallback={null}><RelatedNews id={l.id} /></Suspense>
+          <Streamed fallback={null}><RelatedNews id={l.id} /></Streamed>
         </div>
 
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
@@ -169,10 +169,10 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
           )}
 
           {d.pad?.latitude != null && d.pad.longitude != null && (
-            <Suspense fallback={null}>
+            <Streamed fallback={null}>
               <WeatherCard lat={d.pad.latitude} lng={d.pad.longitude} place={d.location?.name ?? padName(d.pad.name) ?? ""}
                 t0={["Go", "TBC", "TBD", "Hold"].includes(l.statusAbbrev ?? "") && ["SEC", "MIN", "HR"].includes(l.netPrecision ?? "") ? l.net?.toISOString() ?? null : null} />
-            </Suspense>
+            </Streamed>
           )}
 
           {(l.probability != null || d.weatherConcerns) && (

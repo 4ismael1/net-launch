@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { ExternalLink } from "lucide-react";
 import { getRocket } from "@/lib/data/entities";
 import { Card, CardHeader, Kpi } from "@/components/ui/Card";
@@ -15,9 +15,9 @@ export async function generateMetadata({ params }: PageProps<"/vehiculos/[id]">)
 
 export default function Page({ params }: PageProps<"/vehiculos/[id]">) {
   return (
-    <Suspense fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
+    <Streamed fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
       <Content params={params} />
-    </Suspense>
+    </Streamed>
   );
 }
 

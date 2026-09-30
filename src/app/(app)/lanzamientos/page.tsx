@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getFilterOptions, parseFilters, searchLaunches } from "@/lib/data/explore";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -17,9 +17,9 @@ export default function LanzamientosPage({ searchParams }: PageProps<"/lanzamien
         title="Lanzamientos"
         description="Próximos y pasados de todo el mundo. Los filtros se combinan y quedan en la URL para compartir la búsqueda."
       />
-      <Suspense fallback={<Skeleton />}>
+      <Streamed fallback={<Skeleton />}>
         <Results searchParams={searchParams} />
-      </Suspense>
+      </Streamed>
     </div>
   );
 }

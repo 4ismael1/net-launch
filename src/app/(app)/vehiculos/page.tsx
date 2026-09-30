@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { Rocket } from "lucide-react";
 import { listRockets } from "@/lib/data/entities";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -13,9 +13,9 @@ export default function Page({ searchParams }: PageProps<"/vehiculos">) {
   return (
     <div className="mx-auto max-w-[1400px]">
       <PageHeader eyebrow="Datos" title="Vehículos de lanzamiento" description="Cohetes y sus configuraciones, con historial y tasa de éxito." />
-      <Suspense fallback={<div className="h-96 animate-pulse rounded-lg border border-line bg-surface" />}>
+      <Streamed fallback={<div className="h-96 animate-pulse rounded-lg border border-line bg-surface" />}>
         <List searchParams={searchParams} />
-      </Suspense>
+      </Streamed>
     </div>
   );
 }

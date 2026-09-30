@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { getMapData } from "@/lib/data/map";
 import { WorldMap } from "@/components/map/WorldMap";
 
@@ -10,9 +10,9 @@ export default async function MapaPage() {
   return (
     <div data-fullbleed className="-mx-4 -mt-5 -mb-24 md:-mx-6 md:-mb-10">
       <h1 className="sr-only">Mapa mundial de plataformas de lanzamiento</h1>
-      <Suspense fallback={<div className="h-[calc(100dvh-56px)] bg-bg" />}>
+      <Streamed fallback={<div className="h-[calc(100dvh-56px)] bg-bg" />}>
         <WorldMap pads={pads} operators={operators} />
-      </Suspense>
+      </Streamed>
     </div>
   );
 }

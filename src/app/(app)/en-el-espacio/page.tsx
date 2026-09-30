@@ -7,7 +7,7 @@ import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { Flag } from "@/components/ui/Flag";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { countryName } from "@/lib/format";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { connection } from "next/server";
 import { getStationsGP } from "@/lib/orbit";
 import { OrbitViewer } from "@/components/orbit/OrbitViewer";
@@ -31,9 +31,9 @@ export default async function Page() {
             <Kpi label="Actualizado" value={<LocalTime date={new Date(data.at)} mode="relative" className="text-lg" />} />
           </div>
 
-          <Suspense fallback={<div className="h-[420px] animate-pulse rounded-lg border border-line bg-surface" />}>
+          <Streamed fallback={<div className="h-[420px] animate-pulse rounded-lg border border-line bg-surface" />}>
             <StationsOrbit />
-          </Suspense>
+          </Streamed>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {data.stations.map((s) => {

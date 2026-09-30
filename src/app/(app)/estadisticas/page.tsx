@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import clsx from "clsx";
 import { Info } from "lucide-react";
 import { getBackfillStatus, getStats, type Period } from "@/lib/data/stats";
@@ -20,9 +20,9 @@ export default function Page({ searchParams }: PageProps<"/estadisticas">) {
     <div className="mx-auto max-w-[1400px]">
       <PageHeader eyebrow="Datos" title="Estadísticas"
         description="Calculadas a partir de los lanzamientos reales sincronizados desde Launch Library 2. Solo se cuentan los lanzamientos ya realizados (éxito, fallo o fallo parcial)." />
-      <Suspense fallback={<div className="h-[60vh] animate-pulse rounded-lg border border-line bg-surface" />}>
+      <Streamed fallback={<div className="h-[60vh] animate-pulse rounded-lg border border-line bg-surface" />}>
         <Content searchParams={searchParams} />
-      </Suspense>
+      </Streamed>
     </div>
   );
 }

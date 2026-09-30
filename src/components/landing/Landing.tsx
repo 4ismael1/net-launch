@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import clsx from "clsx";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ScrollToPlugin } from "gsap/ScrollToPlugin";
 import {
   ArrowRight, ArrowDown, Map, Rocket, Building2, BarChart3, Orbit, CloudSun, Radio, Search, GraduationCap, Microscope, Telescope,
 } from "lucide-react";
@@ -42,11 +43,13 @@ export function Landing({ data }: { data: LandingData }) {
   const globe = useRef<GlobeHandle>(null);
   const [chapter, setChapter] = useState<string>("ahora");
   const [stop, setStop] = useState(0);
+  const navRef = useRef<((id: string) => void) | null>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
   const fragments = [...SOURCE_KINDS, ...data.fragments].slice(0, 26);
   const c = data.conc;
 
   useIso(() => {
-    gsap.registerPlugin(ScrollTrigger);
+    gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     // Scroll NATIVO del navegador (sin librerías que lo intercepten): lo más fiable y cómodo.
@@ -81,9 +84,8 @@ export function Landing({ data }: { data: LandingData }) {
       // 03 · recorrido fijado con paradas discretas y ENCAJE nativo: al soltar, siempre se asienta en una base completa
       const nStops = data.stops.length;
       let lastIdx = -1;
-      ScrollTrigger.create({
+      const tour = ScrollTrigger.create({
         trigger: "[data-tour-pin]", start: "top top", end: () => `+=${Math.max(1, nStops - 1) * window.innerHeight * 0.8}`, pin: true,
-        snap: nStops > 1 ? { snapTo: 1 / (nStops - 1), duration: { min: 0.2, max: 0.55 }, delay: 0.06, ease: "power1.inOut" } : undefined,
         onUpdate: (st) => {
           const idx = Math.min(nStops - 1, Math.round(st.progress * (nStops - 1)));
           if (idx !== lastIdx) {
@@ -115,12 +117,101 @@ export function Landing({ data }: { data: LandingData }) {
           gsap.from(el.children, { opacity: 0, y: 20, duration: 0.55, stagger: 0.05, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 94%", once: true } }),
         );
       }
+      // ── Navegación por secciones: cada gesto salta suavemente al siguiente punto; nunca se queda a medias ──
+      let anchors: number[] = [];
+      const computeAnchors = () => {
+        const vh = window.innerHeight, y0 = window.scrollY, max = ScrollTrigger.maxScroll(window);
+        const top = (el: Element) => el.getBoundingClientRect().top + y0;
+        const a: number[] = [];
+        for (const [id] of CHAPTERS) {
+          const el = document.getElementById(id);
+          if (!el) continue;
+          const t = top(el), h = el.getBoundingClientRect().height;
+          if (id === "planeta") {
+            a.push(t);
+            if (nStops > 1) for (let i = 0; i < nStops; i++) a.push(tour.start + (i * (tour.end - tour.start)) / (nStops - 1));
+            else a.push(tour.start);
+            continue;
+          }
+          a.push(t);
+          // Secciones más altas que la pantalla: pasos de pantalla completa hasta mostrar su final
+          for (let y = t + vh * 0.85; y < t + h - vh * 1.02; y += vh * 0.85) a.push(y);
+          if (h > vh * 1.15) a.push(t + h - vh);
+        }
+        a.push(max);
+        anchors = [...new Set(a.map((v) => Math.round(Math.min(Math.max(v, 0), max))))].sort((x, y) => x - y)
+          .filter((v, i, arr) => i === 0 || v - arr[i - 1] > 40);
+      };
+      computeAnchors();
+      ScrollTrigger.addEventListener("refresh", computeAnchors);
+
+      let busy = false, quietTimer: ReturnType<typeof setTimeout> | undefined;
+      const goTo = (y: number) => {
+        busy = true;
+        gsap.to(window, {
+          scrollTo: { y, autoKill: false }, duration: reduce ? 0 : 0.85, ease: "power2.inOut",
+          onComplete: () => { setTimeout(() => { busy = false; }, 120); },
+        });
+      };
+      const step = (dir: 1 | -1) => {
+        const y = window.scrollY;
+        const target = dir > 0 ? anchors.find((a) => a > y + 8) : [...anchors].reverse().find((a) => a < y - 8);
+        if (target !== undefined) goTo(target);
+      };
+      navRef.current = (id: string) => { const el = document.getElementById(id); if (el) goTo(el.getBoundingClientRect().top + window.scrollY); };
+
+      // Rueda / trackpad: un gesto = un salto; la inercia del trackpad se ignora hasta que se calma
+      let acc = 0;
+      const onWheel = (e: WheelEvent) => {
+        if (e.ctrlKey) return; // zoom del navegador
+        const target = e.target as HTMLElement;
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && target.closest("[data-hscroll]")) return; // carrusel horizontal
+        e.preventDefault();
+        clearTimeout(quietTimer);
+        quietTimer = setTimeout(() => { acc = 0; }, 180);
+        if (busy) return;
+        acc += e.deltaY;
+        if (Math.abs(acc) > 30) { step(acc > 0 ? 1 : -1); acc = 0; }
+      };
+      // Táctil: un deslizamiento vertical = un salto
+      let ty = 0, tx = 0;
+      const onTouchStart = (e: TouchEvent) => { ty = e.touches[0].clientY; tx = e.touches[0].clientX; };
+      const onTouchMove = (e: TouchEvent) => {
+        const dy = ty - e.touches[0].clientY, dx = tx - e.touches[0].clientX;
+        if (Math.abs(dy) > Math.abs(dx)) e.preventDefault();
+      };
+      const onTouchEnd = (e: TouchEvent) => {
+        const dy = ty - e.changedTouches[0].clientY, dx = tx - e.changedTouches[0].clientX;
+        if (busy || Math.abs(dy) < 40 || Math.abs(dy) < Math.abs(dx)) return;
+        step(dy > 0 ? 1 : -1);
+      };
+      const onKey = (e: KeyboardEvent) => {
+        if ((e.target as HTMLElement).closest("input, textarea, select")) return;
+        if (["ArrowDown", "PageDown", " "].includes(e.key)) { e.preventDefault(); if (!busy) step(1); }
+        else if (["ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); if (!busy) step(-1); }
+        else if (e.key === "Home") { e.preventDefault(); goTo(0); }
+        else if (e.key === "End") { e.preventDefault(); goTo(anchors[anchors.length - 1] ?? 0); }
+      };
+      window.addEventListener("wheel", onWheel, { passive: false });
+      window.addEventListener("touchstart", onTouchStart, { passive: true });
+      window.addEventListener("touchmove", onTouchMove, { passive: false });
+      window.addEventListener("touchend", onTouchEnd, { passive: true });
+      window.addEventListener("keydown", onKey);
+      cleanupRef.current = () => {
+        window.removeEventListener("wheel", onWheel);
+        window.removeEventListener("touchstart", onTouchStart);
+        window.removeEventListener("touchmove", onTouchMove);
+        window.removeEventListener("touchend", onTouchEnd);
+        window.removeEventListener("keydown", onKey);
+        ScrollTrigger.removeEventListener("refresh", computeAnchors);
+        clearTimeout(quietTimer);
+      };
     }, root);
 
-    return () => ctx.revert();
+    return () => { cleanupRef.current?.(); ctx.revert(); };
   }, []);
 
-  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  const go = (id: string) => (navRef.current ? navRef.current(id) : document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }));
   const track = useRef<HTMLDivElement>(null);
   const slide = (dir: 1 | -1) => track.current?.scrollBy({ left: dir * Math.min(640, track.current.clientWidth * 0.8), behavior: "smooth" });
   const live = useLive();
@@ -320,7 +411,7 @@ export function Landing({ data }: { data: LandingData }) {
               <button onClick={() => slide(1)} aria-label="Siguientes" className="flex size-10 items-center justify-center rounded-md border border-line-strong hover:bg-surface-2"><ArrowRight className="size-4" /></button>
             </div>
           </div>
-          <div ref={track} className="mt-10 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto overscroll-x-contain px-5 pb-4 [scrollbar-width:none] md:scroll-px-12 md:px-12 lg:scroll-px-20 lg:px-20 [&::-webkit-scrollbar]:hidden">
+          <div ref={track} data-hscroll className="mt-10 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto overscroll-x-contain px-5 pb-4 [scrollbar-width:none] md:scroll-px-12 md:px-12 lg:scroll-px-20 lg:px-20 [&::-webkit-scrollbar]:hidden">
             {data.lesser.map((o) => (
               <Link key={o.id} href={`/organizaciones/${o.id}`}
                 className="group flex min-h-[270px] w-[260px] shrink-0 snap-start flex-col rounded-lg border border-line bg-surface p-5 transition-colors hover:border-accent/50 md:w-[300px]">

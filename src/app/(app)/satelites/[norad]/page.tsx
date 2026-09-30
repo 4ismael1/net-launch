@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { ChevronRight, ExternalLink, Rocket } from "lucide-react";
 import { getSatellite, launchForObject, OBJECT_TYPES, OPS_STATUS } from "@/lib/satellites";
 import { derived, orbitClass } from "@/lib/orbit";
@@ -23,9 +23,9 @@ export async function generateMetadata({ params }: PageProps<"/satelites/[norad]
 
 export default function Page({ params }: PageProps<"/satelites/[norad]">) {
   return (
-    <Suspense fallback={<div className="mx-auto h-[70vh] max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
+    <Streamed fallback={<div className="mx-auto h-[70vh] max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
       <Content params={params} />
-    </Suspense>
+    </Streamed>
   );
 }
 

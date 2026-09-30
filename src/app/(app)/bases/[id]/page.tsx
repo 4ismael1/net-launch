@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { MapPin } from "lucide-react";
 import { getLocation } from "@/lib/data/entities";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
@@ -18,9 +18,9 @@ export async function generateMetadata({ params }: PageProps<"/bases/[id]">): Pr
 
 export default function Page({ params }: PageProps<"/bases/[id]">) {
   return (
-    <Suspense fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
+    <Streamed fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
       <Content params={params} />
-    </Suspense>
+    </Streamed>
   );
 }
 
@@ -64,7 +64,7 @@ async function Content({ params }: Pick<PageProps<"/bases/[id]">, "params">) {
             <Card className="overflow-hidden"><CardHeader title="Ubicación" /><MiniMap lat={firstPad.lat} lng={firstPad.lng} label={loc.name} /></Card>
           )}
           {firstPad?.lat != null && firstPad.lng != null && (
-            <Suspense fallback={null}><WeatherCard lat={firstPad.lat} lng={firstPad.lng} place={loc.name} /></Suspense>
+            <Streamed fallback={null}><WeatherCard lat={firstPad.lat} lng={firstPad.lng} place={loc.name} /></Streamed>
           )}
           <Card>
             <CardHeader title="Plataformas" meta={String(d.pads.length)} />

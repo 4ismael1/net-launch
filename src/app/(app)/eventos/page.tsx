@@ -42,17 +42,28 @@ export default async function Page() {
 
 function EventRow({ e, upcoming }: { e: SpaceEvent; upcoming?: boolean }) {
   const video = e.videos.find((v) => v.official) ?? e.videos[0];
+  // Enlace principal: la información oficial del evento; si no hay, su transmisión
+  const main = e.links[0]?.url ?? video?.url ?? null;
+  const Img = (
+    <div className="size-16 shrink-0 overflow-hidden rounded-md border border-line bg-surface-3">
+      {e.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={e.imageUrl} alt="" loading="lazy" className="size-full object-cover transition-transform duration-300 group-hover:scale-105" />
+      )}
+    </div>
+  );
   return (
-    <li className="flex gap-3 px-4 py-3.5">
-      <div className="size-14 shrink-0 overflow-hidden rounded-md border border-line bg-surface-3">
-        {e.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={e.imageUrl} alt="" loading="lazy" className="size-full object-cover" />
-        )}
-      </div>
+    <li className="group flex gap-3 px-4 py-3.5 transition-colors hover:bg-surface-2">
+      {main ? <a href={main} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden>{Img}</a> : Img}
       <div className="min-w-0 flex-1">
         <p className="label mb-0.5 !text-fg-muted">{typeEs(e.type)}{e.location && <span className="normal-case tracking-normal text-fg-dim"> · {e.location}</span>}</p>
-        <p className="text-[14px] leading-snug">{e.name}</p>
+        {main ? (
+          <a href={main} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-1.5 text-[14.5px] leading-snug font-medium hover:text-accent">
+            {e.name} <ExternalLink className="mt-1 size-3.5 shrink-0 text-fg-dim group-hover:text-accent" />
+          </a>
+        ) : (
+          <p className="text-[14.5px] leading-snug font-medium">{e.name}</p>
+        )}
         {e.description && <p lang="en" className="mt-1 line-clamp-2 text-xs text-fg-dim">{e.description}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
           <LocalTime date={e.date} precision={e.precision} className="num text-fg-muted" />

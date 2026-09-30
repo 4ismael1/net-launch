@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { AGENCY_TYPES, listOrganizations, typeLabel, type OrgSort } from "@/lib/data/entities";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { UrlFilters } from "@/components/entity/UrlFilters";
@@ -15,9 +15,9 @@ export default function Page({ searchParams }: PageProps<"/organizaciones">) {
     <div className="mx-auto max-w-[1400px]">
       <PageHeader eyebrow="Datos" title="Organizaciones"
         description="Agencias espaciales, empresas y consorcios con actividad de lanzamiento registrada. Ordenadas alfabéticamente por defecto: aquí nadie tiene prioridad por ser famoso." />
-      <Suspense fallback={<div className="h-96 animate-pulse rounded-lg border border-line bg-surface" />}>
+      <Streamed fallback={<div className="h-96 animate-pulse rounded-lg border border-line bg-surface" />}>
         <List searchParams={searchParams} />
-      </Suspense>
+      </Streamed>
     </div>
   );
 }

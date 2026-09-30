@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { Info } from "lucide-react";
 import { CATEGORIES, FEATURED, GROUPS, type GroupKey } from "@/lib/satellites";
 import { SatExplorer } from "@/components/orbit/SatExplorer";
@@ -14,9 +14,9 @@ export default function Page() {
         <h1 className="text-xl font-semibold tracking-tight">Satélites en tiempo real</h1>
         <p className="text-sm text-fg-muted">Activa y combina grupos del catálogo público de CelesTrak y míralos moverse alrededor de la Tierra.</p>
       </div>
-      <Suspense fallback={<div className="h-[70vh] animate-pulse rounded-lg border border-line bg-surface" />}>
+      <Streamed fallback={<div className="h-[70vh] animate-pulse rounded-lg border border-line bg-surface" />}>
         <SatExplorer groups={groups} categories={CATEGORIES} featured={FEATURED} />
-      </Suspense>
+      </Streamed>
       <p className="flex gap-2 text-xs text-fg-dim">
         <Info className="mt-0.5 size-3.5 shrink-0" />
         Fuente: CelesTrak (GP/SATCAT), descargado en el servidor como máximo una vez cada 3 h. Cada posición se recalcula con el modelo SGP4 aproximadamente cada segundo

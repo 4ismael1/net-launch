@@ -130,3 +130,35 @@ body:has([data-fullbleed]) {
 body:has([data-fullbleed]) [data-app-footer] {
   display: none;
 }
+
+/* ───────── Transiciones (View Transitions API vía React <ViewTransition>) ───────── */
+:root {
+  --vt-exit: 140ms;
+  --vt-enter: 240ms;
+  --vt-move: 380ms;
+}
+::view-transition-old(.vt-page-out) {
+  animation: var(--vt-exit) ease-out both vt-fade reverse, var(--vt-exit) ease-out both vt-rise reverse;
+}
+::view-transition-new(.vt-page-in) {
+  animation: var(--vt-enter) ease-out var(--vt-exit) both vt-fade, var(--vt-move) cubic-bezier(0.2, 0.7, 0.2, 1) both vt-rise;
+}
+::view-transition-old(.vt-skeleton-out) {
+  animation: var(--vt-exit) ease-out both vt-fade reverse;
+}
+::view-transition-new(.vt-content-in) {
+  animation: var(--vt-enter) ease-out both vt-fade, var(--vt-move) cubic-bezier(0.2, 0.7, 0.2, 1) both vt-rise;
+}
+@keyframes vt-fade {
+  from { opacity: 0; filter: blur(2px); }
+  to { opacity: 1; filter: blur(0); }
+}
+@keyframes vt-rise {
+  from { transform: translateY(8px); }
+  to { transform: none; }
+}
+/* La barra lateral y superior no parpadean: solo se anima el contenido */
+::view-transition-group(root) { animation-duration: 0s; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

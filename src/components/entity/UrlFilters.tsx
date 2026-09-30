@@ -23,6 +23,7 @@ export function UrlFilters({ fields, count, noun }: { fields: Field[]; count: nu
     const next = new URLSearchParams(sp);
     if (v) next.set(k, v);
     else next.delete(k);
+    next.delete("page"); // un filtro nuevo siempre empieza en la primera página
     start(() => router.replace(`${path}${next.size ? `?${next}` : ""}`, { scroll: false }));
   };
 

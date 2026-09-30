@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Streamed } from "@/components/ui/Streamed";
 import { ExternalLink } from "lucide-react";
 import { getOrganization, typeLabel } from "@/lib/data/entities";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
@@ -16,9 +16,9 @@ export async function generateMetadata({ params }: PageProps<"/organizaciones/[i
 
 export default function Page({ params }: PageProps<"/organizaciones/[id]">) {
   return (
-    <Suspense fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
+    <Streamed fallback={<div className="mx-auto h-96 max-w-[1400px] animate-pulse rounded-lg border border-line bg-surface" />}>
       <Content params={params} />
-    </Suspense>
+    </Streamed>
   );
 }
 
