@@ -32,7 +32,7 @@ export function LaunchTile({ l }: { l: ExploreRow }) {
         <p className="truncate text-xs text-fg-dim"><Flag code={l.countryCode} /> {l.locationName ?? padName(l.padName) ?? "—"}</p>
         <div className="mt-auto flex items-center justify-between gap-2 border-t border-line pt-2.5">
           <LocalTime date={l.net} precision={l.netPrecision} className="num truncate text-[11.5px] text-fg-muted" />
-          {pending && isPrecise(l.netPrecision) && <Countdown net={l.net} precision={l.netPrecision} size="sm" />}
+          {pending && isPrecise(l.netPrecision) && <Countdown net={l.net} precision={l.netPrecision} size="sm" status={l.statusAbbrev} />}
           {l.orbitAbbrev && !pending && <span className="num text-[11px] text-fg-dim">{l.orbitAbbrev}</span>}
         </div>
       </div>

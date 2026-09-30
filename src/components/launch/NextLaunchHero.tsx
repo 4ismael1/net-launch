@@ -1,16 +1,27 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowUpRight, MapPin, Play } from "lucide-react";
 import type { LaunchCard } from "@/lib/data/launches";
+import { useLive } from "@/lib/hooks/live";
+import { RescheduleNotice, WatchButton } from "./LiveExtras";
 import { countryName, padName } from "@/lib/format";
 import { Flag } from "@/components/ui/Flag";
 import { Countdown } from "./Countdown";
 import { StatusBadge } from "./StatusBadge";
 import { LocalTime } from "./LocalTime";
 
-export function NextLaunchHero({ l }: { l: LaunchCard }) {
+type HeroLaunch = Pick<LaunchCard, "slug" | "name" | "missionName" | "statusAbbrev" | "netPrecision" | "webcastLive" | "rocketName" | "rocketFullName"
+  | "providerName" | "providerType" | "locationName" | "padName" | "padId" | "countryCode" | "imageUrl" | "orbitName" | "missionType"> & { net: Date | string | null };
+
+/** Próximo lanzamiento; se actualiza en vivo (estado, retrasos o paso al siguiente) sin recargar la página. */
+export function NextLaunchHero({ l: initial }: { l: HeroLaunch }) {
+  const live = useLive();
+  const l: HeroLaunch = live?.next ?? initial;
+  const sameLaunch = live?.next?.slug === initial.slug;
   const country = countryName(l.countryCode);
   return (
-    <section className="relative overflow-hidden rounded-lg border border-line bg-surface">
+    <section key={l.slug} className="animate-fade-in relative overflow-hidden rounded-lg border border-line bg-surface">
       {l.imageUrl && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -21,7 +32,7 @@ export function NextLaunchHero({ l }: { l: LaunchCard }) {
       <div className="relative grid grid-cols-[minmax(0,1fr)] gap-6 p-5 md:p-7">
         <div className="flex flex-wrap items-center gap-3">
           <span className="label !text-accent">Próximo lanzamiento</span>
-          <StatusBadge abbrev={l.statusAbbrev} />
+          <StatusBadge key={l.statusAbbrev} abbrev={l.statusAbbrev} className="animate-status-pop" />
           {l.webcastLive && (
             <span className="inline-flex items-center gap-1.5 rounded-sm bg-failure px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-white">
               <span className="size-1.5 animate-pulse-dot rounded-full bg-white" /> EN DIRECTO
@@ -38,7 +49,10 @@ export function NextLaunchHero({ l }: { l: LaunchCard }) {
           </p>
         </div>
 
-        <Countdown net={l.net} precision={l.netPrecision} />
+        <div className="flex flex-col gap-2">
+          <Countdown net={l.net} precision={l.netPrecision} status={l.statusAbbrev} />
+          {sameLaunch && <RescheduleNotice before={initial.net} after={l.net} precision={l.netPrecision} />}
+        </div>
 
         <dl className="grid max-w-3xl grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <Field k="Fecha (tu hora)"><LocalTime date={l.net} precision={l.netPrecision} /></Field>
@@ -50,6 +64,7 @@ export function NextLaunchHero({ l }: { l: LaunchCard }) {
         </dl>
 
         <div className="flex flex-wrap gap-2">
+          <WatchButton watch={live?.next?.watch} net={l.net} webcastLive={l.webcastLive} />
           <Link href={`/lanzamientos/${l.slug}`} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-fg px-3.5 text-sm font-medium text-bg transition-opacity hover:opacity-90">
             Ver misión <ArrowUpRight className="size-4" />
           </Link>

@@ -26,7 +26,7 @@ export function LaunchRow({ l, showCountdown = true }: { l: LaunchCard; showCoun
         <div className="flex shrink-0 flex-col items-end gap-1">
           <StatusBadge abbrev={l.statusAbbrev} />
           {showCountdown && isPrecise(l.netPrecision) ? (
-            <Countdown net={l.net} precision={l.netPrecision} size="sm" />
+            <Countdown net={l.net} precision={l.netPrecision} size="sm" status={l.statusAbbrev} />
           ) : (
             <LocalTime date={l.net} precision={l.netPrecision} className="num text-[11px] text-fg-dim" />
           )}

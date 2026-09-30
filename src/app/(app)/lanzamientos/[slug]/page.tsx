@@ -7,8 +7,7 @@ import { CalendarPlus, ChevronRight, ExternalLink, MapPin, Play, ShieldCheck, In
 import { getLaunchDetail, getPrerenderSlugs, type LaunchDetail } from "@/lib/data/launch-detail";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Flag } from "@/components/ui/Flag";
-import { StatusBadge } from "@/components/launch/StatusBadge";
-import { Countdown } from "@/components/launch/Countdown";
+import { LiveMissionStatus } from "@/components/launch/LiveMissionStatus";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { MiniMap } from "@/components/map/MiniMap";
 import { WeatherCard } from "@/components/weather/WeatherCard";
@@ -64,9 +63,7 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
         )}
         <div className="relative grid grid-cols-[minmax(0,1fr)] gap-5 p-5 md:p-7">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge abbrev={l.statusAbbrev} />
-            <span className="text-xs text-fg-dim">{l.statusName}</span>
-            {l.webcastLive && <span className="rounded-sm bg-failure px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-white">EN DIRECTO</span>}
+            <LiveMissionStatus slug={l.slug} part="badge" initial={{ statusAbbrev: l.statusAbbrev, statusName: l.statusName, net: l.net, netPrecision: l.netPrecision, webcastLive: l.webcastLive }} />
           </div>
           <div>
             <p className="num text-sm text-fg-muted">{d.rocket?.fullName ?? d.rocket?.name}</p>
@@ -76,7 +73,7 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
               {country && <> · <Flag code={l.countryCode} /> {country}</>}
             </p>
           </div>
-          {["Go", "TBC", "TBD", "Hold", "In Flight"].includes(l.statusAbbrev ?? "") && <Countdown net={l.net} precision={l.netPrecision} />}
+          <LiveMissionStatus slug={l.slug} part="countdown" initial={{ statusAbbrev: l.statusAbbrev, statusName: l.statusName, net: l.net, netPrecision: l.netPrecision, webcastLive: l.webcastLive }} />
           {l.failReason && (
             <p className="max-w-2xl rounded-md border border-failure/30 bg-failure/10 px-3 py-2 text-sm text-fg">
               <span className="label mr-2 !text-failure">Causa del fallo</span>{l.failReason}

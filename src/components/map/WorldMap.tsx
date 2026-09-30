@@ -293,7 +293,7 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
                   <p className="text-sm group-hover:underline">{pad.nextName}</p>
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <StatusBadge abbrev={pad.nextStatus} />
-                    <Countdown net={pad.nextNet} precision={pad.nextPrecision} size="sm" />
+                    <Countdown net={pad.nextNet} precision={pad.nextPrecision} size="sm" status={pad.nextStatus} />
                   </div>
                 </Link>
               </div>

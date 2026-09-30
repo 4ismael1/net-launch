@@ -56,7 +56,7 @@ function EventRow({ e, upcoming }: { e: SpaceEvent; upcoming?: boolean }) {
         {e.description && <p lang="en" className="mt-1 line-clamp-2 text-xs text-fg-dim">{e.description}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
           <LocalTime date={e.date} precision={e.precision} className="num text-fg-muted" />
-          {upcoming && <Countdown net={e.date} precision={e.precision} size="sm" />}
+          {upcoming && <Countdown net={e.date} precision={e.precision} size="sm" status="event" />}
           {e.webcastLive && <span className="rounded-sm bg-failure px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">EN DIRECTO</span>}
           {video && (
             <a href={video.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-fg-muted hover:text-fg">

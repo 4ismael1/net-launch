@@ -18,6 +18,8 @@ import { StatusBadge, StatusDot } from "@/components/launch/StatusBadge";
 import { Flag } from "@/components/ui/Flag";
 import { countryName, isPrecise } from "@/lib/format";
 import { typeLabel } from "@/lib/data/entities-labels";
+import { useLive } from "@/lib/hooks/live";
+import { WatchButton } from "@/components/launch/LiveExtras";
 
 const GlobeStage = dynamic(() => import("./GlobeStage").then((m) => m.GlobeStage), { ssr: false });
 const useIso = typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -165,7 +167,8 @@ export function Landing({ data }: { data: LandingData }) {
   }, []);
 
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  const n = data.next;
+  const live = useLive();
+  const n = live?.next ?? data.next; // en vivo: cambia de estado o al siguiente lanzamiento sin recargar
 
   return (
     <div ref={root} className="relative overflow-x-clip bg-bg text-fg">
@@ -202,14 +205,15 @@ export function Landing({ data }: { data: LandingData }) {
           {n && (
             <Link href={`/lanzamientos/${n.slug}`} className="mt-6 flex max-w-lg flex-wrap items-end justify-between gap-x-6 gap-y-3 rounded-lg border border-line bg-surface/80 p-4 backdrop-blur transition-colors hover:border-line-strong">
               <div className="min-w-0">
-                <div className="mb-2 flex items-center gap-2"><span className="label !text-accent">Próximo lanzamiento</span><StatusBadge abbrev={n.statusAbbrev} /></div>
+                <div className="mb-2 flex items-center gap-2"><span className="label !text-accent">Próximo lanzamiento</span><StatusBadge key={n.statusAbbrev} abbrev={n.statusAbbrev} className="animate-status-pop" /></div>
                 <p className="truncate font-medium">{n.missionName ?? n.name}</p>
                 <p className="truncate text-xs text-fg-dim"><Flag code={n.countryCode} /> {n.rocketName} · {n.providerName}</p>
               </div>
-              <Countdown net={n.net} precision={n.netPrecision} size="md" />
+              <Countdown net={n.net} precision={n.netPrecision} size="md" status={n.statusAbbrev} />
             </Link>
           )}
           <div className="mt-6 flex flex-wrap gap-3">
+            {n && <WatchButton watch={live?.next?.watch} net={n.net} webcastLive={n.webcastLive} className="h-11" />}
             <Link href="/panel" className="inline-flex h-11 items-center gap-2 rounded-md bg-fg px-5 font-medium text-bg hover:opacity-90">Entrar a la plataforma <ArrowRight className="size-4" /></Link>
             <button onClick={() => go("problema")} className="inline-flex h-11 items-center gap-2 rounded-md border border-line-strong bg-bg/50 px-5 backdrop-blur hover:bg-surface-2">Por qué existe <ArrowDown className="size-4" /></button>
           </div>
@@ -224,7 +228,7 @@ export function Landing({ data }: { data: LandingData }) {
                 <Flag code={l.country} />
                 <span className="text-fg">{l.name}</span>
                 <span className="text-fg-dim">{l.rocket} · {l.provider}</span>
-                {isPrecise(l.precision) ? <Countdown net={l.net} precision={l.precision} size="sm" /> : <span className="num text-xs text-fg-dim">NET</span>}
+                {isPrecise(l.precision) ? <Countdown net={l.net} precision={l.precision} size="sm" status={l.status} /> : <span className="num text-xs text-fg-dim">NET</span>}
               </Link>
             ))}
           </div>
@@ -313,7 +317,7 @@ export function Landing({ data }: { data: LandingData }) {
                   <li key={l.slug} className="flex items-center gap-2 px-3 py-2 text-xs">
                     <StatusDot abbrev={l.status} /><Flag code={l.country} />
                     <span className="min-w-0 flex-1 truncate">{l.name}</span>
-                    {isPrecise(l.precision) && <Countdown net={l.net} precision={l.precision} size="sm" />}
+                    {isPrecise(l.precision) && <Countdown net={l.net} precision={l.precision} size="sm" status={l.status} />}
                   </li>
                 ))}
               </ul>
