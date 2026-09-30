@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Maximize2, Minus, Pause, Play, Plus } from "lucide-react";
-import { orbitControls } from "./earth";
+import { orbitControls, orbitPath, screenScale } from "./earth";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, type SatRec } from "@/lib/sgp4";
@@ -79,25 +79,22 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
     // Halo atmosférico sutil
     scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.015, 64, 48), new THREE.MeshBasicMaterial({ color: 0xff5b1f, transparent: true, opacity: 0.04, side: THREE.BackSide })));
 
-    // Órbitas: un periodo completo en marco inercial, desde "ahora"
+    // Órbitas: una vuelta completa centrada en "ahora", como bucle cerrado; se recalculan cada segundo
     const markers: THREE.Mesh[] = [];
+    const lines: THREE.LineLoop[] = [];
     let maxR = 1.2;
-    for (const s of sats) {
-      const period = (1440 / s.o.MEAN_MOTION) * 60_000;
-      const now = Date.now();
-      const pts: THREE.Vector3[] = [];
-      for (let i = 0; i <= 240; i++) {
-        const pv = propagate(s.rec, new Date(now + (period * i) / 240));
-        if (pv?.position && typeof pv.position !== "boolean") pts.push(eci(pv.position));
-      }
-      if (pts.length > 2) {
-        maxR = Math.max(maxR, ...pts.map((p) => p.length()));
-        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: s.color, transparent: true, opacity: 0.55 })));
-      }
-      const mk = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), new THREE.MeshBasicMaterial({ color: s.color }));
+    const periods = sats.map((s) => (1440 / s.o.MEAN_MOTION) * 60_000);
+    for (const [i, s] of sats.entries()) {
+      const pts = orbitPath(s.rec, Date.now(), periods[i], 240);
+      if (pts.length > 2) maxR = Math.max(maxR, ...pts.map((p) => p.length()));
+      const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: s.color, transparent: true, opacity: 0.6 }));
+      scene.add(line);
+      lines.push(line);
+      const mk = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: s.color }));
       scene.add(mk);
       markers.push(mk);
     }
+    let lastOrbit = Date.now();
     const dist = Math.min(Math.max(maxR * 2.3, 3.2), 16);
     const ctl = orbitControls(host, camera, dist);
     ctlRef.current = ctl;
@@ -122,6 +119,7 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
         const pv = propagate(s.rec, date);
         if (pv?.position && typeof pv.position !== "boolean") {
           markers[i].position.copy(eci(pv.position));
+          markers[i].scale.setScalar(screenScale(camera, markers[i].position, 0.009));
           if (t - lastLive > 1000) {
             const geo = eciToGeodetic(pv.position, g);
             liveNow.push({ name: s.o.OBJECT_NAME, lat: degreesLat(geo.latitude), lon: degreesLong(geo.longitude), alt: geo.height, color: s.color });
@@ -129,6 +127,10 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
         }
       });
       if (liveNow.length) { setLive(liveNow); lastLive = t; }
+      if (Date.now() - lastOrbit > 1000) {
+        lastOrbit = Date.now();
+        sats.forEach((s, i) => { lines[i].geometry.dispose(); lines[i].geometry = new THREE.BufferGeometry().setFromPoints(orbitPath(s.rec, lastOrbit, periods[i], 240)); });
+      }
       ctl.update();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);

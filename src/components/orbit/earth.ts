@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
+import { propagate, type SatRec } from "@/lib/sgp4";
 
 export const RE = 6371;
 
@@ -109,3 +110,19 @@ export function makeRenderer(host: HTMLElement, camera: THREE.PerspectiveCamera)
   resize();
   return { renderer, dispose: () => { ro.disconnect(); renderer.dispose(); host.innerHTML = ""; } };
 }
+
+/**
+ * Puntos de una órbita completa CENTRADA en `tMs` (media vuelta atrás, media adelante),
+ * para dibujar con THREE.LineLoop: el satélite queda siempre sobre el trazo y no hay hueco a su lado.
+ */
+export function orbitPath(rec: SatRec, tMs: number, periodMs: number, steps = 240) {
+  const pts: THREE.Vector3[] = [];
+  for (let k = 0; k < steps; k++) {
+    const pv = propagate(rec, new Date(tMs - periodMs / 2 + (periodMs * k) / steps));
+    if (pv?.position && typeof pv.position !== "boolean") pts.push(eciToThree(pv.position));
+  }
+  return pts;
+}
+
+/** Escala para que un objeto mida siempre lo mismo en pantalla, independientemente del zoom. */
+export const screenScale = (camera: THREE.Camera, at: THREE.Vector3, k = 0.022) => camera.position.distanceTo(at) * k;

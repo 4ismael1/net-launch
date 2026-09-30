@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, type SatRec } from "@/lib/sgp4";
 import type { OMM } from "@/lib/orbit";
-import { RE, buildEarth, eciToThree, makeRenderer, orbitControls } from "./earth";
+import { RE, buildEarth, eciToThree, makeRenderer, orbitControls, orbitPath, screenScale } from "./earth";
 import { ICON_KINDS, buildAtlas, type IconKind } from "./satIcons";
 
 export type EngineSat = { omm: OMM; color: string; group: string; icon: IconKind };
@@ -29,7 +29,8 @@ export class SatEngine {
   private raf = 0;
   private selected = -1;
   private marker: THREE.Group;
-  private orbitLine: THREE.Line | null = null;
+  private orbitLine: THREE.LineLoop | null = null;
+  private lastOrbit = 0;
   private raycaster = new THREE.Raycaster();
   // Reloj: en ×1 es exactamente la hora real; con aceleración avanza más rápido y se indica en la interfaz.
   private warp = 1;
@@ -49,8 +50,9 @@ export class SatEngine {
 
     // Marcador del seleccionado
     this.marker = new THREE.Group();
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false });
-    this.marker.add(new THREE.Mesh(new THREE.RingGeometry(0.03, 0.037, 40), ringMat));
+    // Anillo de radio 1 escalado cada fotograma: mismo tamaño en pantalla a cualquier zoom
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthTest: false });
+    this.marker.add(new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48), ringMat));
     this.marker.visible = false;
     this.scene.add(this.marker);
 
@@ -169,6 +171,8 @@ export class SatEngine {
       const j = this.selected * 3;
       this.marker.position.set(this.pos[j], this.pos[j + 1], this.pos[j + 2]);
       this.marker.lookAt(this.camera.position);
+      this.marker.scale.setScalar(screenScale(this.camera, this.marker.position));
+      if (real - this.lastOrbit > 1000) this.refreshOrbit(); // la órbita acompaña al satélite
     }
     if (this.material) this.material.uniforms.scale.value = this.host.clientHeight / 2;
     this.ctl.update();
@@ -194,15 +198,19 @@ export class SatEngine {
     this.selected = i;
     this.marker.visible = i >= 0;
     if (this.orbitLine) { this.scene.remove(this.orbitLine); this.orbitLine.geometry.dispose(); this.orbitLine = null; }
-    const rec = i >= 0 ? this.recs[i] : null;
-    if (!rec) return;
-    const period = (1440 / this.sats[i].omm.MEAN_MOTION) * 60_000, t0 = this.simMs, pts: THREE.Vector3[] = [];
-    for (let k = 0; k <= 200; k++) {
-      const pv = propagate(rec, new Date(t0 + (period * k) / 200));
-      if (pv?.position && typeof pv.position !== "boolean") pts.push(eciToThree(pv.position));
-    }
-    this.orbitLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: this.sats[i].color, transparent: true, opacity: 0.8 }));
+    if (i < 0 || !this.recs[i]) return;
+    this.orbitLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: this.sats[i].color, transparent: true, opacity: 0.8 }));
     this.scene.add(this.orbitLine);
+    this.refreshOrbit();
+  }
+
+  private refreshOrbit() {
+    const i = this.selected, rec = i >= 0 ? this.recs[i] : null;
+    if (!rec || !this.orbitLine) return;
+    const period = (1440 / this.sats[i].omm.MEAN_MOTION) * 60_000;
+    this.orbitLine.geometry.dispose();
+    this.orbitLine.geometry = new THREE.BufferGeometry().setFromPoints(orbitPath(rec, this.simMs, period, 240));
+    this.lastOrbit = Date.now();
   }
 
   selectNorad(norad: number | null) {
