@@ -51,7 +51,7 @@ async function Content({ params }: Pick<PageProps<"/organizaciones/[id]">, "para
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
         <Kpi label="Lanzamientos" value={org.totalLaunchCount?.toLocaleString("es") ?? "—"} hint="Total según LL2" />
         <Kpi label="Exitosos" value={org.successfulLaunches?.toLocaleString("es") ?? "—"} />
-        <Kpi label="Tasa de éxito" value={rate === null ? "—" : `${rate} %`} />
+        <Kpi label="Tasa de éxito" value={rate === null ? "—" : `${rate.toLocaleString("es")} %`} />
         <Kpi label="Pendientes" value={org.pendingLaunches?.toLocaleString("es") ?? "—"} />
       </div>
 

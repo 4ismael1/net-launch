@@ -22,7 +22,7 @@ export function YearsChart({ data }: { data: { year: number; success: number; fa
       trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: "#ffffff08" } },
       formatter: (p: { axisValue: string; value: number; seriesName: string }[]) => {
         const s = p[0]?.value ?? 0, f = p[1]?.value ?? 0, t = s + f;
-        return `<b>${p[0].axisValue}</b><br/>${nf.format(t)} lanzamientos<br/>Éxitos: ${nf.format(s)}<br/>Fallos: ${nf.format(f)}${t ? `<br/>Éxito: ${Math.round((s / t) * 1000) / 10} %` : ""}`;
+        return `<b>${p[0].axisValue}</b><br/>${nf.format(t)} lanzamientos<br/>Éxitos: ${nf.format(s)}<br/>Fallos: ${nf.format(f)}${t ? `<br/>Éxito: ${(Math.round((s / t) * 1000) / 10).toLocaleString("es")} %` : ""}`;
       },
     },
     xAxis: { type: "category", data: data.map((d) => d.year), ...axis, splitLine: { show: false } },

@@ -12,7 +12,7 @@ import { countryName } from "@/lib/format";
 export const metadata: Metadata = { title: "Estadísticas" };
 
 const PERIODS: [Period, string][] = [["12m", "Últimos 12 meses"], ["5a", "Últimos 5 años"], ["todo", "Todo el histórico"]];
-const pct = (x: number) => `${Math.round(x * 1000) / 10} %`;
+const pct = (x: number) => `${(Math.round(x * 1000) / 10).toLocaleString("es")} %`;
 const nf = new Intl.NumberFormat("es");
 
 export default function Page({ searchParams }: PageProps<"/estadisticas">) {

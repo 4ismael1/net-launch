@@ -52,7 +52,7 @@ async function Content({ params }: Pick<PageProps<"/vehiculos/[id]">, "params">)
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
         <Kpi label="Vuelos" value={r.totalLaunchCount ?? "—"} hint="Total según LL2" />
         <Kpi label="Exitosos" value={r.successfulLaunches ?? "—"} />
-        <Kpi label="Tasa de éxito" value={rate === null ? "—" : `${rate} %`} />
+        <Kpi label="Tasa de éxito" value={rate === null ? "—" : `${rate.toLocaleString("es")} %`} />
         <Kpi label="Aterrizajes" value={specs.landings ?? "—"} hint="Exitosos" />
       </div>
 

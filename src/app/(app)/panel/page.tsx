@@ -33,7 +33,7 @@ export default async function PanelPage() {
         <Kpi label="Próximos" value={nf.format(kpis.upcoming)} hint="Programados" />
         <Kpi label="Este mes" value={nf.format(kpis.month)} hint="Previstos y realizados" />
         <Kpi label={`Realizados ${year}`} value={nf.format(kpis.year_done)} hint="Éxitos y fallos" />
-        <Kpi label={`Éxito ${year}`} value={successRate === null ? "—" : `${successRate} %`} hint={`${nf.format(kpis.year_success)} exitosos`} />
+        <Kpi label={`Éxito ${year}`} value={successRate === null ? "—" : `${successRate.toLocaleString("es")} %`} hint={`${nf.format(kpis.year_success)} exitosos`} />
         <Kpi label="Países" value={nf.format(kpis.countries)} hint="Con bases activas (12 meses)" />
         <Kpi label="Operadores" value={nf.format(kpis.operators)} hint="Activos (12 meses)" />
       </div>
