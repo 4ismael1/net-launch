@@ -36,7 +36,7 @@ export function buildEarth(scene: THREE.Scene) {
 
 /** Cámara orbital con arrastre y rueda; devuelve la función de actualización y la limpieza. */
 export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera, dist: number) {
-  let az = 0.6, el = 0.35, dragging = false, px = 0, py = 0, zoom = dist;
+  let az = 0.6, el = 0.35, dragging = false, px = 0, py = 0, zoom = dist, maxZoom = dist * 2.5;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const down = (e: PointerEvent) => { dragging = true; px = e.clientX; py = e.clientY; host.setPointerCapture(e.pointerId); };
   const move = (e: PointerEvent) => {
@@ -45,12 +45,14 @@ export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera
     px = e.clientX; py = e.clientY;
   };
   const up = () => { dragging = false; };
-  const wheel = (e: WheelEvent) => { e.preventDefault(); zoom = Math.max(1.6, Math.min(dist * 2.5, zoom * (1 + Math.sign(e.deltaY) * 0.1))); };
+  const wheel = (e: WheelEvent) => { e.preventDefault(); zoom = Math.max(1.6, Math.min(maxZoom, zoom * (1 + Math.sign(e.deltaY) * 0.1))); };
   host.addEventListener("pointerdown", down);
   host.addEventListener("pointermove", move);
   host.addEventListener("pointerup", up);
   host.addEventListener("wheel", wheel, { passive: false });
   return {
+    /** Ajusta la distancia (p. ej. al cambiar de conjunto de satélites). */
+    setDistance(d: number) { zoom = d; maxZoom = Math.max(d * 2.5, 12); },
     update() {
       if (!dragging && !reduce) az += 0.0006;
       camera.position.set(zoom * Math.cos(el) * Math.sin(az), zoom * Math.sin(el), zoom * Math.cos(el) * Math.cos(az));
@@ -68,10 +70,13 @@ export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera
 export function makeRenderer(host: HTMLElement, camera: THREE.PerspectiveCamera) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Canvas en bloque y al 100 % del contenedor: evita el bucle de crecimiento con ResizeObserver (desbordes)
+  Object.assign(renderer.domElement.style, { display: "block", width: "100%", height: "100%" });
+  host.style.overflow = "hidden";
   host.appendChild(renderer.domElement);
   const resize = () => {
-    const w = host.clientWidth, h = host.clientHeight;
-    renderer.setSize(w, h);
+    const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
+    renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };

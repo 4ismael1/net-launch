@@ -46,6 +46,8 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
 
     const renderer = new THREE.WebGLRenderer({ antialias: !mobile, alpha: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? 1.5 : 1.75));
+    Object.assign(renderer.domElement.style, { display: "block", width: "100%", height: "100%" });
+    el.style.overflow = "hidden";
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
@@ -125,8 +127,8 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
     scene.add(new THREE.Points(starG, new THREE.PointsMaterial({ color: 0xecebe6, size: 0.12, map: tex, transparent: true, opacity: 0.35, depthWrite: false })));
 
     const resize = () => {
-      const w = el.clientWidth, h = el.clientHeight;
-      renderer.setSize(w, h);
+      const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight);
+      renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
     };

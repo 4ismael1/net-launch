@@ -34,6 +34,8 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    Object.assign(renderer.domElement.style, { display: "block", width: "100%", height: "100%" });
+    host.style.overflow = "hidden";
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
@@ -84,7 +86,7 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
       scene.add(mk);
       markers.push(mk);
     }
-    const dist = Math.min(Math.max(maxR * 2.6, 3.2), 30);
+    const dist = Math.min(Math.max(maxR * 2.3, 3.2), 16);
     let az = 0.6, el2 = 0.35, dragging = false, px = 0, py = 0, zoom = dist;
 
     const onDown = (e: PointerEvent) => { dragging = true; px = e.clientX; py = e.clientY; host.setPointerCapture(e.pointerId); };
@@ -101,8 +103,8 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
     host.addEventListener("wheel", onWheel, { passive: false });
 
     const resize = () => {
-      const w = host.clientWidth, h = host.clientHeight;
-      renderer.setSize(w, h);
+      const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
+      renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
     };
