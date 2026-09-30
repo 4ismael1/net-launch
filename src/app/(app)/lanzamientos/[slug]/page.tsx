@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: PageProps<"/lanzamientos/[slu
   if (!d) return { title: "Lanzamiento no encontrado" };
   return {
     title: d.l.name,
-    description: d.l.missionDescription?.slice(0, 160) ?? `${d.l.name} · ${d.provider?.name ?? ""}`,
+    description: (d.l.missionDescriptionEs ?? d.l.missionDescription)?.slice(0, 160) ?? `${d.l.name} · ${d.provider?.name ?? ""}`,
     openGraph: d.l.imageUrl ? { images: [d.l.imageUrl] } : undefined,
   };
 }
@@ -104,10 +104,20 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
             <CardHeader title="Misión" meta={l.missionType ?? undefined} />
             <div className="space-y-3 p-4 text-sm leading-relaxed text-fg-muted">
               {l.missionDescription ? (
-                <>
-                  <p className="text-fg">{l.missionDescription}</p>
-                  <p className="text-[11px] text-fg-dim">Descripción original en inglés (Launch Library 2). La traducción automática llegará en una fase posterior.</p>
-                </>
+                l.missionDescriptionEs ? (
+                  <>
+                    <p className="text-fg">{l.missionDescriptionEs}</p>
+                    <details className="text-[11px] text-fg-dim">
+                      <summary className="cursor-pointer select-none hover:text-fg-muted">Traducción automática (Gemini) · ver original en inglés (Launch Library 2)</summary>
+                      <p lang="en" className="mt-2 text-[13px] leading-relaxed text-fg-muted">{l.missionDescription}</p>
+                    </details>
+                  </>
+                ) : (
+                  <>
+                    <p lang="en" className="text-fg">{l.missionDescription}</p>
+                    <p className="text-[11px] text-fg-dim">Descripción original en inglés (Launch Library 2); la traducción está en cola.</p>
+                  </>
+                )
               ) : (
                 <p>No hay una descripción pública disponible para esta misión.</p>
               )}

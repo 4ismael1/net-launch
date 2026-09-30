@@ -20,7 +20,7 @@ Uso bajo (universitario): elegir siempre la **mejor** opción gratuita, aunque r
 - Cuenta regresiva local, respetando `net_precision`.
 - Atribución visible: The Space Devs, MapTiler/OpenStreetMap/OpenFreeMap, Open-Meteo, CelesTrak.
 - No traducir nombres oficiales (misiones, cohetes, agencias, bases).
-- Estética: oscura, sobria, con un solo acento naranja `#FF5B1F`, Geist + mono. Nada de gradientes morados ni radios grandes.
+- Estética: **grafito cálido neutro** (fondo `#0B0B0A`, SIN tinte azul ni morado: el usuario lo considera "estética de IA"), un solo acento naranja `#FF5B1F`, Geist + mono, radios pequeños. El mapa base se recolorea con `neutralizeBasemap`.
 - Si una API complementaria cae, solo se oculta su módulo.
 
 ## Flujo de trabajo

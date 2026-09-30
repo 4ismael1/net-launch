@@ -1,28 +1,28 @@
 @import "tailwindcss";
 
-/* ───────── Tokens: sala de operaciones, sobria y oscura ───────── */
+/* ───────── Tokens: sala de operaciones, grafito cálido (sin tinte azul) ───────── */
 @theme {
-  --color-bg: #07090d;
-  --color-surface: #0d1117;
-  --color-surface-2: #121821;
-  --color-surface-3: #18202b;
-  --color-line: #1c2530;
-  --color-line-strong: #283343;
-  --color-fg: #e6eaf0;
-  --color-fg-muted: #8a96a6;
-  --color-fg-dim: #5b6676;
+  --color-bg: #0b0b0a;
+  --color-surface: #121211;
+  --color-surface-2: #181816;
+  --color-surface-3: #20201d;
+  --color-line: #252521;
+  --color-line-strong: #34332e;
+  --color-fg: #ecebe6;
+  --color-fg-muted: #a6a39a;
+  --color-fg-dim: #716e66;
 
   --color-accent: #ff5b1f;
   --color-accent-soft: #ff5b1f1f;
 
   --color-go: #2bd67b;
   --color-tbc: #f5b83d;
-  --color-tbd: #6b7788;
+  --color-tbd: #7a776f;
   --color-hold: #ff8a3d;
   --color-flight: #38c6f4;
   --color-success: #3fb97a;
   --color-failure: #ff4d4f;
-  --color-partial: #b48cf2;
+  --color-partial: #c9785d;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;

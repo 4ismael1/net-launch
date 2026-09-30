@@ -1,11 +1,10 @@
 # PROGRESO
 
 ## Estado actual
-- **Fase actual:** F1 casi completa. Falta subir a GitHub y activar el cron con la API real.
-- **Siguiente paso exacto:**
-  1. Crear un repo privado en GitHub, hacer push y crear el secret `DATABASE_URL`.
-  2. Cambiar a datos reales: vaciar las tablas (ahora hay datos de `lldev`) y dejar que el Action haga la carga (~6 h para el histórico).
-  3. Empezar F2 (sistema de diseño + layout + panel).
+- **Hecho:** F1 (datos + sync real en GitHub Actions, repo privado 4ismael1/net-launch), F2 (diseño + layout + panel), F3 (mapa), F4 (misión), F5 (explorador + Ctrl+K), F6 parcial (organizaciones, bases, vehículos + traducción Gemini).
+- **Siguiente paso exacto:** F6 resto → añadir al sync los endpoints LL2 `/events/upcoming/`, `/astronauts/?in_space=true` y `/space_stations/?status=1`, y crear las páginas `/eventos` y `/en-el-espacio`. Luego F7 (estadísticas con ECharts).
+- Paleta cambiada a grafito cálido (el usuario rechaza el azul "de IA").
+- Traducción: `gemini-flash-lite-latest`, máx. 6 peticiones/ejecución, textos únicos, invalidación si cambia el original.
 
 ## Hecho en F1
 - Next.js 16.3 + TS + Tailwind v4 (en la raíz). Ojo: leer `node_modules/next/dist/docs/` antes de usar APIs de Next (AGENTS.md).
@@ -17,8 +16,10 @@
 
 ## Pendientes del usuario
 - [ ] Rotar la contraseña de Neon (quedó escrita en el chat) y actualizar `.env.local` y el secret
-- [ ] Cuentas futuras: MapTiler (F3), Google AI Studio/Gemini (F6), NASA API, PostHog y Sentry (F11)
+- [ ] Cuentas futuras: MapTiler (satélite; poner `NEXT_PUBLIC_MAPTILER_KEY`), NASA API, PostHog, Sentry, Vercel (deploy)
+- [x] Gemini (clave en .env.local y en el secret de GitHub)
 
 ## Bitácora
 - 2026-09-30 — F0: plan y verificación de APIs.
 - 2026-09-30 — F1: base de datos + sincronizador funcionando con lldev.
+- 2026-09-30 — F2–F6: interfaz completa navegable con datos reales; traducciones Gemini funcionando (150 textos → 418 misiones).

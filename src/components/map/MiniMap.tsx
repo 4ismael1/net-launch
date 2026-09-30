@@ -2,6 +2,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
+import { neutralizeBasemap } from "./basemap";
 
 const KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 const STYLE = KEY ? `https://api.maptiler.com/maps/hybrid/style.json?key=${KEY}` : "https://tiles.openfreemap.org/styles/dark";
@@ -26,9 +27,10 @@ export function MiniMap({ lat, lng, label }: { lat: number; lng: number; label: 
       map.addControl(new NavigationControl({ showCompass: false }), "top-right");
       map.addControl(new AttributionControl({ compact: true }), "bottom-right");
       const dot = document.createElement("div");
-      dot.className = "size-4 rounded-full border-2 border-white bg-[#ff5b1f] shadow-[0_0_0_6px_rgba(255,91,31,.25)]";
+      dot.className = "size-4 rounded-full border-2 border-white bg-accent shadow-[0_0_0_6px_rgba(255,91,31,.25)]";
       dot.title = label;
       new Marker({ element: dot }).setLngLat([lng, lat]).addTo(map);
+      if (!KEY) map.on("style.load", () => neutralizeBasemap(map!));
       map.once("load", () => el.current?.querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show"));
     });
     return () => {

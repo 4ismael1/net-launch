@@ -7,6 +7,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import { db, schema } from "../src/lib/db";
 import { LL2Client, BudgetExceededError, RateLimitedError, type Page } from "../src/lib/ll2/client";
 import { normLaunch, normAgency, normPad, normLocation } from "../src/lib/ll2/normalize";
+import { translateBatch } from "../src/lib/translate";
 
 const BASE = process.env.LL2_BASE_URL ?? "https://ll.thespacedevs.com/2.3.0";
 const PER_HOUR = Number(process.env.LL2_MAX_REQUESTS_PER_HOUR ?? 14);
@@ -186,6 +187,16 @@ async function main() {
     }
   }
 
+  // 5) Traducciones (Gemini): textos únicos, prioridad a próximos y recientes
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const n = await translatePending(Number(process.env.GEMINI_MAX_REQUESTS ?? 6));
+      if (n) say(`traducidos: ${n} textos`);
+    } catch (e) {
+      say(`traducción pausada: ${(e as Error).message}`);
+    }
+  }
+
   await setState(`ll2_request_log:${new URL(BASE).host}`, [...history, ...Array(client.requests).fill(now)]);
   await db
     .update(schema.syncRuns)
@@ -201,6 +212,37 @@ async function main() {
   }
   say(`listo · ${client.requests} peticiones · ${upserted} lanzamientos`);
   process.exit(ok ? 0 : 1);
+}
+
+async function translatePending(maxRequests: number) {
+  let done = 0;
+  for (let r = 0; r < maxRequests; r++) {
+    const { rows } = await db.execute<{ d: string }>(sql`
+      SELECT mission_description AS d FROM launches
+      WHERE mission_description IS NOT NULL AND mission_description_es IS NULL
+      GROUP BY mission_description
+      ORDER BY min(abs(extract(epoch FROM (net - now())))) ASC LIMIT 25`);
+    const texts = rows.map((x) => x.d);
+    if (!texts.length) {
+      // Luego, descripciones de organizaciones
+      const { rows: ag } = await db.execute<{ id: number; d: string }>(sql`
+        SELECT id, description AS d FROM agencies WHERE description IS NOT NULL AND description_es IS NULL
+        ORDER BY total_launch_count DESC NULLS LAST LIMIT 15`);
+      if (!ag.length) break;
+      const out = await translateBatch(ag.map((x) => x.d));
+      if (!out) break;
+      for (let i = 0; i < ag.length; i++) await db.update(schema.agencies).set({ descriptionEs: out[i] }).where(eq(schema.agencies.id, ag[i].id));
+      done += ag.length;
+      continue;
+    }
+    const out = await translateBatch(texts);
+    if (!out) break;
+    for (let i = 0; i < texts.length; i++) {
+      await db.update(schema.launches).set({ missionDescriptionEs: out[i] }).where(eq(schema.launches.missionDescription, texts[i]));
+    }
+    done += texts.length;
+  }
+  return done;
 }
 
 main();

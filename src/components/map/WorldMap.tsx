@@ -13,6 +13,7 @@ import { Flag } from "@/components/ui/Flag";
 import { StatusBadge } from "@/components/launch/StatusBadge";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { Countdown } from "@/components/launch/Countdown";
+import { neutralizeBasemap } from "./basemap";
 
 type View = "all" | "upcoming" | "recent";
 type Activity = { slug: string; name: string; net: string | null; net_precision: string | null; status_abbrev: string | null; provider: string | null; rocket: string | null; kind: "upcoming" | "recent" };
@@ -25,7 +26,7 @@ const STYLES = {
   satellite: MAPTILER_KEY ? `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}` : null,
 };
 
-const C = { accent: "#ff5b1f", recent: "#8a96a6", old: "#3a4656", bg: "#07090d" };
+const C = { accent: "#ff5b1f", recent: "#a6a39a", old: "#4d4a44", bg: "#0b0b0a", cluster: "#5e5b54" };
 
 function toGeoJSON(pads: MapPad[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
   return {
@@ -138,11 +139,11 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
       source: "pads",
       filter: ["has", "point_count"],
       paint: {
-        "circle-color": ["case", [">", ["get", "upcoming"], 0], C.accent, "#556274"],
+        "circle-color": ["case", [">", ["get", "upcoming"], 0], C.accent, C.cluster],
         "circle-opacity": 0.85,
         "circle-radius": ["step", ["get", "point_count"], 14, 5, 18, 15, 24],
         "circle-stroke-width": 6,
-        "circle-stroke-color": ["case", [">", ["get", "upcoming"], 0], "rgba(255,91,31,.22)", "rgba(85,98,116,.25)"],
+        "circle-stroke-color": ["case", [">", ["get", "upcoming"], 0], "rgba(255,91,31,.22)", "rgba(94,91,84,.3)"],
       },
     });
     map.addLayer({
