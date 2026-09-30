@@ -42,7 +42,8 @@
 | Fuente | Uso | Límite / condiciones | Estrategia |
 |---|---|---|---|
 | **Launch Library 2 v2.3.0** | Núcleo: lanzamientos, agencias, bases, pads, vehículos, streams | 15 req/h sin key. `lldev.thespacedevs.com` sin límite pero con datos reducidos/antiguos | Dev → `lldev`. Prod → sync programado a BD. Atribución a The Space Devs |
-| **OpenFreeMap** (datos OSM) | Tiles del mapa | Gratis, sin key, sin límites | Estilo Dark personalizado. Atribución "© OpenMapTiles · Data from OpenStreetMap" |
+| **MapTiler** (datos OSM) | Mapa principal: estilo oscuro vectorial, **vista satélite** y **relieve 3D** para ver cada plataforma desde arriba | Gratis 100k tiles/mes, API key gratuita | Atribución "© MapTiler © OpenStreetMap contributors" |
+| **OpenFreeMap** | Respaldo automático si MapTiler falla | Gratis, sin key, sin límites | Estilo Dark |
 | **Open-Meteo** | Clima de la plataforma | Gratis no comercial, ~10.000 req/día, sin key | Llamada del servidor con caché de 30 min. Pronóstico hasta 16 días antes del NET |
 | **CelesTrak GP** | Objetos catalogados por lanzamiento | Datos cada 2 h. >50 errores en 2 h = bloqueo de IP. 100 MB/día | Solo en servidor, caché ≥ 6 h en BD, cero reintentos agresivos |
 | **Spaceflight News API v4** | Noticias vinculadas (opcional) | Gratis, sin key | Caché de 1 h |
@@ -75,10 +76,13 @@ GitHub Actions (cron cada 15 min)
 | Estilos | **Tailwind CSS v4** + componentes propios (Radix primitives) | Control total del look "centro de control", sin estética genérica |
 | BD | **Neon Postgres** + **Drizzle** | Gratis, SQL real para estadísticas, `pg_trgm` para búsqueda |
 | Sync | **GitHub Actions cron** | El cron de Vercel Hobby es solo diario; Actions es gratis |
-| Mapa | **MapLibre GL JS v5** (react-map-gl) | Clustering nativo, WebGL, **proyección globo** nativa |
+| Mapa | **MapLibre GL JS v5** + MapTiler (satélite + relieve 3D) | Clustering nativo, WebGL, **proyección globo**, zoom hasta ver el pad real |
 | 3D landing | **Three.js** + React Three Fiber + drei | Globo con datos reales |
-| Scroll/animación | **GSAP + ScrollTrigger** + **Lenis** + Motion (microinteracciones) | Estándar de sitios premiados, GSAP ya es 100 % gratis |
-| Gráficas | **Recharts** (tema propio) | Simple y suficiente |
+| 3D extra | **@react-three/postprocessing** (bloom), shaders propios de atmósfera | Nivel visual de sitios premiados |
+| Scroll/animación | **GSAP** (ScrollTrigger, SplitText, todos los plugins premium, ahora gratis) + **Lenis** + Motion | Estándar de sitios premiados |
+| Gráficas | **Apache ECharts** (tema propio) | Más potente y animado: mapa de calor por calendario, series largas, transiciones |
+| Analítica UX | **PostHog** (gratis 1M eventos) | Grabación de sesiones y mapas de calor = **evidencia para las pruebas de usabilidad** |
+| Errores | **Sentry** (gratis) | Detectar fallos antes de la presentación |
 | Órbitas | **satellite.js** (SGP4) | Cálculo desde TLE/OMM, etiquetado como "posición calculada" |
 | i18n | **next-intl** (es por defecto, en preparado) | Nombres oficiales sin traducir |
 | Búsqueda UI | **cmdk** | Paleta Ctrl+K |
@@ -131,6 +135,6 @@ Reglas: se carga en diferido, versión ligera en móviles o GPU débil, estátic
 
 ## 10. Requisitos previos (el usuario)
 
-- Cuenta de **GitHub** (repo + Actions), **Vercel** (deploy) y **Neon** (BD). Las tres gratis.
+- Cuentas gratis: **GitHub**, **Vercel**, **Neon** (F1) · **MapTiler** (F3) · **PostHog** y **Sentry** (F11).
 - Node.js 20+ instalado.
 - Opcional: API key de LL2 vía Patreon para acelerar el backfill (no es necesaria).

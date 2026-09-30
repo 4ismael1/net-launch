@@ -6,7 +6,10 @@
 Plataforma web de monitoreo mundial de lanzamientos espaciales (proyecto académico universitario, en español; i18n preparada para inglés). Centraliza la información dispersa con APIs públicas + WebGIS. Plan completo: `docs/PLAN.md`. Decisiones: `docs/DECISIONES.md`.
 
 ## Stack
-Next.js (App Router) + TS · Tailwind v4 · Neon Postgres + Drizzle · sync LL2 con GitHub Actions cron · MapLibre GL v5 + OpenFreeMap Dark · Three.js/R3F + GSAP ScrollTrigger + Lenis (landing) · Recharts · satellite.js · next-intl · Vercel.
+Next.js (App Router) + TS · Tailwind v4 · Neon Postgres + Drizzle · sync LL2 con GitHub Actions cron · MapLibre GL v5 + MapTiler (satélite/relieve; respaldo OpenFreeMap) · Three.js/R3F + postprocessing + GSAP + Lenis (landing) · ECharts · PostHog · Sentry · satellite.js · next-intl · Vercel.
+
+## Criterio
+Uso bajo (universitario): elegir siempre la **mejor** opción gratuita, aunque requiera API key.
 
 ## Reglas no negociables
 - El frontend **nunca** llama a Launch Library 2 directamente; todo pasa por la BD (15 req/h de límite).
