@@ -117,12 +117,7 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
 
   function setupLayers(map: MLMap) {
     // Integrar el estilo base con la paleta de la app
-    if (baseRef.current === "dark") {
-      for (const layer of map.getStyle().layers ?? []) {
-        if (layer.type === "background") map.setPaintProperty(layer.id, "background-color", C.bg);
-        if (layer.type === "fill" && /water|ocean/.test(layer.id)) map.setPaintProperty(layer.id, "fill-color", "#0a0f15");
-      }
-    }
+    if (baseRef.current === "dark") neutralizeBasemap(map, ["clusters", "cluster-count", "pad-halo", "pads"]);
     if (!map.getSource("pads")) {
       map.addSource("pads", {
         type: "geojson",
