@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
-import { json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, type SatRec } from "satellite.js";
+import { json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, type SatRec } from "@/lib/sgp4";
 import type { OMM } from "@/lib/orbit";
 
 const RE = 6371;
