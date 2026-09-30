@@ -12,7 +12,7 @@ export function Countdown({
 }: {
   net: Date | string | null;
   precision: string | null;
-  size?: "lg" | "sm";
+  size?: "lg" | "md" | "sm";
 }) {
   const now = useNow();
 

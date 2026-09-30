@@ -66,7 +66,8 @@ export function Landing({ data }: { data: LandingData }) {
 
       // 02 · dispersión → convergencia
       const frags = gsap.utils.toArray<HTMLElement>("[data-frag]");
-      gsap.timeline({ scrollTrigger: { trigger: "[data-scatter]", start: "top top", end: "+=170%", scrub: 0.8, pin: true } })
+      const scatterTl = gsap.timeline({ scrollTrigger: { trigger: "[data-scatter]", start: "top top", end: "+=170%", scrub: 0.8, pin: true } });
+      scatterTl
         .from("[data-scatter-title]", { opacity: 0, y: 30, duration: 0.25 })
         .fromTo(frags, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, stagger: 0.012, duration: 0.3 }, "<")
         .to(frags, { left: "50%", top: "55%", xPercent: -50, yPercent: -50, scale: 0.3, opacity: 0, stagger: 0.006, duration: 0.55, ease: "power2.in" }, "+=0.25")
@@ -77,23 +78,66 @@ export function Landing({ data }: { data: LandingData }) {
         onEnter: () => globe.current?.setShift(0), onLeaveBack: () => globe.current?.setShift(0.55),
       });
 
-      // 03 · recorrido: el globo apunta a cada base real
-      gsap.utils.toArray<HTMLElement>("[data-stop]").forEach((el, i) => {
-        const lat = Number(el.dataset.lat), lng = Number(el.dataset.lng);
-        ScrollTrigger.create({
-          trigger: el, start: "top 55%", end: "bottom 45%",
-          onToggle: (s) => { if (s.isActive) { setStop(i); globe.current?.setTarget({ lat, lng, dist: 2.6, shiftX: -0.5, dim: 0 }); } },
-        });
-        gsap.from(el.querySelector("[data-card]"), { opacity: 0, y: 40, duration: 0.8, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 70%" } });
+      // 03 · recorrido fijado: el progreso elige una parada discreta (nunca queda una tarjeta a medias)
+      const nStops = data.stops.length;
+      let lastIdx = -1;
+      const tour = ScrollTrigger.create({
+        trigger: "[data-tour-pin]", start: "top top", end: () => `+=${Math.max(1, nStops - 1) * window.innerHeight}`, pin: true,
+        onUpdate: (st) => {
+          const idx = Math.min(nStops - 1, Math.round(st.progress * (nStops - 1)));
+          if (idx !== lastIdx) {
+            lastIdx = idx;
+            setStop(idx);
+            const s = data.stops[idx];
+            if (s) globe.current?.setTarget({ lat: s.lat, lng: s.lng, dist: 2.6, shiftX: -0.5, dim: 0 });
+          }
+        },
+        onLeave: () => { lastIdx = -1; globe.current?.setTarget(null); },
+        onLeaveBack: () => { lastIdx = -1; globe.current?.setTarget(null); },
       });
-      ScrollTrigger.create({ trigger: "#planeta", start: "top 60%", end: "bottom 40%", onLeave: () => globe.current?.setTarget(null), onLeaveBack: () => globe.current?.setTarget(null) });
-
       // 05 · galería horizontal (solo escritorio)
       const track = document.querySelector<HTMLElement>("[data-htrack]");
+      let gallery: ScrollTrigger | undefined;
       if (track && window.matchMedia("(min-width: 768px)").matches && !reduce) {
-        gsap.to(track, {
+        gallery = gsap.to(track, {
           x: () => -(track.scrollWidth - window.innerWidth + 96), ease: "none",
           scrollTrigger: { trigger: "[data-hsection]", start: "top top", end: () => `+=${track.scrollWidth}`, scrub: 0.6, pin: true, invalidateOnRefresh: true },
+        }).scrollTrigger;
+      }
+
+      // Encaje global: al soltar el scroll, la página se acomoda en el punto clave más cercano
+      // (inicio de capítulo, final de cada animación fijada o parada del recorrido). Nunca queda a medias.
+      const heads = CHAPTERS.map(([id]) => ScrollTrigger.create({ trigger: `#${id}`, start: "top top" }));
+      const anchors = () => {
+        const a = heads.map((h) => h.start);
+        const st = scatterTl.scrollTrigger;
+        if (st) a.push(st.end);
+        if (gallery) a.push(gallery.end);
+        if (nStops > 1) for (let i = 0; i < nStops; i++) a.push(tour.start + (i * (tour.end - tour.start)) / (nStops - 1));
+        const last = document.querySelector<HTMLElement>("[data-final]");
+        if (last) a.push(ScrollTrigger.maxScroll(window));
+        return a;
+      };
+      if (lenis) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let snapping = false;
+        lenis.on("scroll", () => {
+          if (snapping) return;
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            const y = lenis.scroll, vh = window.innerHeight;
+            // Dentro de un tramo largo de contenido (p. ej. la galería o la cuadrícula) no se fuerza nada
+            const inGallery = gallery && y > gallery.start + vh * 0.4 && y < gallery.end - vh * 0.4;
+            if (inGallery) return;
+            const inTour = tour.isActive;
+            let best = y, bestD = Infinity;
+            for (const p of anchors()) { const d = Math.abs(p - y); if (d < bestD) { bestD = d; best = p; } }
+            if (bestD > 3 && (inTour || bestD < vh * 0.45)) {
+              snapping = true;
+              lenis.scrollTo(best, { duration: 0.75, onComplete: () => { snapping = false; } });
+              setTimeout(() => { snapping = false; }, 1000);
+            }
+          }, 180);
         });
       }
 
@@ -124,7 +168,7 @@ export function Landing({ data }: { data: LandingData }) {
   const n = data.next;
 
   return (
-    <div ref={root} className="relative bg-bg text-fg">
+    <div ref={root} className="relative overflow-x-clip bg-bg text-fg">
       <div className="pointer-events-none fixed inset-0 z-0"><GlobeStage ref={globe} pads={data.pads} /></div>
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,var(--color-bg)_95%)]" />
 
@@ -147,30 +191,32 @@ export function Landing({ data }: { data: LandingData }) {
         </Link>
       </header>
 
-      {/* 01 · AHORA */}
-      <section id="ahora" className="relative z-10 flex min-h-dvh flex-col justify-center pt-24">
-        <div data-hero className="max-w-xl px-5 md:px-12 lg:px-20">
+      {/* 01 · AHORA — cabe en una pantalla a cualquier altura */}
+      <section id="ahora" className="relative z-10 flex h-dvh min-h-[560px] flex-col">
+        <div data-hero className="flex max-w-2xl flex-1 flex-col justify-center px-5 pt-20 pb-6 md:px-12 lg:px-20">
           <Eyebrow n="01" text="Monitor mundial de lanzamientos" />
-          <h1 className="text-4xl leading-[1.04] font-semibold tracking-tight md:text-6xl">Todo lo que despega en el planeta, en un solo lugar.</h1>
-          <p className="mt-5 max-w-md text-fg-muted md:text-lg">
+          <h1 className="text-[clamp(2.1rem,min(4.4vw,7.2vh),4.4rem)] leading-[1.04] font-semibold tracking-tight">Todo lo que despega en el planeta, en un solo lugar.</h1>
+          <p className="mt-4 max-w-lg text-fg-muted md:text-[17px] [@media(max-height:700px)]:hidden">
             {nf.format(data.pads.length)} plataformas en {nf.format(data.kpis.countries)} países y {nf.format(data.activeOperators)} operadores activos. Agencias gigantes y empresas que casi nadie conoce, con datos públicos.
           </p>
           {n && (
-            <Link href={`/lanzamientos/${n.slug}`} className="mt-7 block max-w-md rounded-lg border border-line bg-surface/80 p-4 backdrop-blur transition-colors hover:border-line-strong">
-              <div className="mb-3 flex items-center gap-2"><span className="label !text-accent">Próximo lanzamiento</span><StatusBadge abbrev={n.statusAbbrev} /></div>
-              <p className="truncate font-medium">{n.missionName ?? n.name}</p>
-              <p className="mb-3 truncate text-xs text-fg-dim"><Flag code={n.countryCode} /> {n.rocketName} · {n.providerName} · {n.locationName}</p>
-              <Countdown net={n.net} precision={n.netPrecision} />
+            <Link href={`/lanzamientos/${n.slug}`} className="mt-6 flex max-w-lg flex-wrap items-end justify-between gap-x-6 gap-y-3 rounded-lg border border-line bg-surface/80 p-4 backdrop-blur transition-colors hover:border-line-strong">
+              <div className="min-w-0">
+                <div className="mb-2 flex items-center gap-2"><span className="label !text-accent">Próximo lanzamiento</span><StatusBadge abbrev={n.statusAbbrev} /></div>
+                <p className="truncate font-medium">{n.missionName ?? n.name}</p>
+                <p className="truncate text-xs text-fg-dim"><Flag code={n.countryCode} /> {n.rocketName} · {n.providerName}</p>
+              </div>
+              <Countdown net={n.net} precision={n.netPrecision} size="md" />
             </Link>
           )}
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/panel" className="inline-flex h-11 items-center gap-2 rounded-md bg-fg px-5 font-medium text-bg hover:opacity-90">Entrar a la plataforma <ArrowRight className="size-4" /></Link>
             <button onClick={() => go("problema")} className="inline-flex h-11 items-center gap-2 rounded-md border border-line-strong bg-bg/50 px-5 backdrop-blur hover:bg-surface-2">Por qué existe <ArrowDown className="size-4" /></button>
           </div>
         </div>
 
         {/* Cinta: próximos lanzamientos reales */}
-        <div className="mt-12 overflow-hidden border-y border-line bg-bg/70 py-3 backdrop-blur [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
+        <div className="shrink-0 overflow-hidden border-y border-line bg-bg/70 py-3 backdrop-blur [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
           <div className="flex w-max animate-[marquee_60s_linear_infinite] gap-8 pr-8 hover:[animation-play-state:paused]">
             {[...data.upcoming, ...data.upcoming].map((l, i) => (
               <Link key={l.slug + i} href={`/lanzamientos/${l.slug}`} className="flex items-center gap-2.5 text-[13px] whitespace-nowrap text-fg-muted hover:text-fg">
@@ -220,8 +266,8 @@ export function Landing({ data }: { data: LandingData }) {
           <Eyebrow n="03" text="El planeta" />
           <h2 className="max-w-xl text-3xl font-semibold tracking-tight md:text-5xl">Un recorrido por las bases que lanzan hoy.</h2>
         </div>
-        <div className="relative">
-          <ol className="sticky top-1/2 z-20 hidden h-0 -translate-y-1/2 flex-col gap-2 pl-12 md:flex lg:pl-20" aria-label="Paradas">
+        <div data-tour-pin className="relative h-dvh">
+          <ol className="absolute top-1/2 left-5 z-20 hidden -translate-y-1/2 flex-col gap-2.5 md:left-12 md:flex lg:left-20" aria-label="Paradas">
             {data.stops.map((s, i) => (
               <li key={s.id} className={clsx("flex items-center gap-3 text-sm transition-all duration-300", stop === i ? "text-fg" : "text-fg-dim")}>
                 <span className={clsx("h-px transition-all duration-300", stop === i ? "w-8 bg-accent" : "w-4 bg-line-strong")} />
@@ -229,17 +275,24 @@ export function Landing({ data }: { data: LandingData }) {
               </li>
             ))}
           </ol>
-          {data.stops.map((s) => (
-            <div key={s.id} data-stop data-lat={s.lat} data-lng={s.lng} className="flex min-h-dvh items-end px-5 pb-10 md:items-center md:justify-end md:px-12 md:pb-0 lg:px-20">
-              <div data-card className="w-full max-w-sm rounded-lg border border-line bg-surface/85 p-5 backdrop-blur">
-                <p className="label mb-1">{s.region}</p>
+          <div className="absolute inset-x-5 bottom-8 flex justify-center gap-1.5 md:hidden">
+            {data.stops.map((s, i) => <span key={s.id} className={clsx("h-1 rounded-full transition-all", stop === i ? "w-6 bg-accent" : "w-2 bg-line-strong")} />)}
+          </div>
+          {data.stops.map((s, i) => (
+            <div key={s.id} aria-hidden={stop !== i}
+              className={clsx(
+                "absolute inset-x-5 bottom-14 transition-all duration-500 ease-out md:inset-x-auto md:top-1/2 md:right-12 md:bottom-auto md:w-[380px] md:-translate-y-1/2 lg:right-20",
+                stop === i ? "pointer-events-auto opacity-100 md:translate-x-0" : "pointer-events-none translate-y-4 opacity-0 md:translate-x-6",
+              )}>
+              <div className="rounded-lg border border-line bg-surface/85 p-5 backdrop-blur">
+                <p className="label mb-1"><span className="num mr-2 text-accent">{String(i + 1).padStart(2, "0")}/{String(data.stops.length).padStart(2, "0")}</span>{s.region}</p>
                 <h3 className="text-xl font-semibold tracking-tight md:text-2xl">{s.name}</h3>
                 <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line bg-line">
                   <div className="bg-surface p-3"><p className="label">Lanzamientos</p><p className="num mt-1 text-2xl">{nf.format(s.total)}</p></div>
                   <div className="bg-surface p-3"><p className="label">Programados</p><p className="num mt-1 text-2xl text-accent">{s.upcoming}</p></div>
                 </div>
                 {s.operators.length > 0 && <p className="mt-3 text-xs text-fg-dim">Operan aquí: {s.operators.join(" · ")}</p>}
-                <Link href={`/bases/${s.id}`} className="mt-4 inline-flex items-center gap-1 text-sm text-accent hover:underline">Ver la base <ArrowRight className="size-4" /></Link>
+                <Link href={`/bases/${s.id}`} tabIndex={stop === i ? 0 : -1} className="mt-4 inline-flex items-center gap-1 text-sm text-accent hover:underline">Ver la base <ArrowRight className="size-4" /></Link>
               </div>
             </div>
           ))}
@@ -352,7 +405,7 @@ export function Landing({ data }: { data: LandingData }) {
       </section>
 
       {/* Cierre */}
-      <section className="relative z-10 flex min-h-[70dvh] flex-col items-center justify-center px-5 text-center">
+      <section data-final className="relative z-10 flex min-h-[70dvh] flex-col items-center justify-center px-5 text-center">
         <div data-reveal>
           <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight md:text-5xl">Deja de buscar en diez sitios distintos.</h2>
           <div className="mt-8 flex flex-wrap justify-center gap-3">

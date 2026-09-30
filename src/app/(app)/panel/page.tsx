@@ -5,7 +5,7 @@ import { getKpis, getNextLaunch, getPadPoints, getRecent, getSpotlight, getUpcom
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { NextLaunchHero } from "@/components/launch/NextLaunchHero";
 import { LaunchRow } from "@/components/launch/LaunchRow";
-import { PadDotMap } from "@/components/launch/PadDotMap";
+import { PanelMap } from "@/components/map/PanelMap";
 import { countryName } from "@/lib/format";
 import { Flag } from "@/components/ui/Flag";
 
@@ -39,14 +39,14 @@ export default async function PanelPage() {
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <Card className="overflow-hidden">
+        <Card className="flex min-h-[380px] flex-col overflow-hidden">
           <CardHeader
             title="Actividad mundial"
             meta={`${pads.length} plataformas`}
             action={<Link href="/mapa" className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg">Abrir mapa <ArrowRight className="size-3.5" /></Link>}
           />
-          <div className="p-3">
-            <PadDotMap points={pads} />
+          <div className="flex-1">
+            <PanelMap points={pads} />
           </div>
         </Card>
 

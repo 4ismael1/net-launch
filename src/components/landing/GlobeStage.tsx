@@ -101,6 +101,19 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
     const barMat = new THREE.LineBasicMaterial({ color: 0xff5b1f, transparent: true, opacity: 0.7 });
     for (const p of hot) spin.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([ll(p.lng, p.lat, 1.004), ll(p.lng, p.lat, 1.02 + 0.22 * Math.sqrt(p.upcoming / maxUp))]), barMat));
 
+    // Resaltado de la base activa (recorrido)
+    const hl = new THREE.Group();
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff5b1f, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.028, 0.036, 48), ringMat);
+    const ring2 = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.056, 48), ringMat.clone());
+    const core = new THREE.Mesh(new THREE.CircleGeometry(0.014, 24), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0xff5b1f, transparent: true, opacity: 0.8 }));
+    beam.position.z = 0.175; beam.rotation.x = Math.PI / 2;
+    hl.add(ring, ring2, core, beam);
+    hl.visible = false;
+    spin.add(hl);
+    let hlKey = "";
+
     // Campo de estrellas tenue (decorativo, sin datos)
     const starG = new THREE.BufferGeometry();
     const n = mobile ? 600 : 1400, pos = new Float32Array(n * 3);
@@ -128,6 +141,22 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
     const loop = (now: number) => {
       const dt = Math.min(0.05, (now - t0) / 1000); t0 = now;
       const t = state.current.target;
+      const key = t ? `${t.lat},${t.lng}` : "";
+      if (key !== hlKey) {
+        hlKey = key;
+        hl.visible = !!t;
+        if (t) {
+          const p = ll(t.lng, t.lat, 1.008);
+          hl.position.copy(p);
+          spin.updateMatrixWorld(true);
+          hl.lookAt(spin.localToWorld(p.clone().multiplyScalar(2)));
+        }
+      }
+      if (hl.visible) {
+        const k = (now % 1600) / 1600;
+        ring2.scale.setScalar(1 + k * 1.8);
+        (ring2.material as THREE.MeshBasicMaterial).opacity = 0.8 * (1 - k);
+      }
       if (t) {
         spin.rotation.y = angLerp(spin.rotation.y, -Math.PI / 2 - (t.lng * Math.PI) / 180, 2.2 * dt);
         tilt.rotation.x = lerp(tilt.rotation.x, (t.lat * Math.PI) / 180, 2.2 * dt);
