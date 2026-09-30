@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, MapPin, Play } from "lucide-react";
 import type { LaunchCard } from "@/lib/data/launches";
-import { countryName } from "@/lib/format";
+import { countryName, padName } from "@/lib/format";
 import { Flag } from "@/components/ui/Flag";
 import { Countdown } from "./Countdown";
 import { StatusBadge } from "./StatusBadge";
@@ -42,7 +42,7 @@ export function NextLaunchHero({ l }: { l: LaunchCard }) {
 
         <dl className="grid max-w-3xl grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <Field k="Fecha (tu hora)"><LocalTime date={l.net} precision={l.netPrecision} /></Field>
-          <Field k="Plataforma">{l.padName ?? "—"}</Field>
+          <Field k="Plataforma">{padName(l.padName) ?? "—"}</Field>
           <Field k="Base">{l.locationName ?? "—"}</Field>
           <Field k="País">{country ? <><Flag code={l.countryCode} /> {country}</> : "—"}</Field>
           {l.orbitName && <Field k="Órbita">{l.orbitName}</Field>}

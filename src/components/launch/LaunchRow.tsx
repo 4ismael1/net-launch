@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { LaunchCard } from "@/lib/data/launches";
-import { isPrecise } from "@/lib/format";
+import { isPrecise, padName } from "@/lib/format";
 import { Flag } from "@/components/ui/Flag";
 import { StatusBadge } from "./StatusBadge";
 import { LocalTime } from "./LocalTime";
@@ -20,7 +20,7 @@ export function LaunchRow({ l, showCountdown = true }: { l: LaunchCard; showCoun
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13.5px] text-fg group-hover:text-white">{l.missionName ?? l.name}</p>
           <p className="truncate text-xs text-fg-dim">
-            <Flag code={l.countryCode} /> {l.rocketName ?? "—"} · {l.providerAbbrev ?? l.providerName} · {l.locationName ?? l.padName}
+            <Flag code={l.countryCode} /> {l.rocketName ?? "—"} · {l.providerAbbrev ?? l.providerName} · {l.locationName ?? padName(l.padName)}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">

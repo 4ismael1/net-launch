@@ -89,3 +89,9 @@ export function splitCountdown(ms: number) {
     s: Math.floor(t % 60),
   };
 }
+
+/** LL2 usa "Unknown Pad" cuando la plataforma aún no se ha anunciado. */
+export function padName(name: string | null | undefined) {
+  if (!name) return null;
+  return /^unknown pad$/i.test(name.trim()) ? "Plataforma por confirmar" : name;
+}
