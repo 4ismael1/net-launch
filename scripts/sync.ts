@@ -108,7 +108,7 @@ async function main() {
   if (process.argv.includes("--reset-cursors")) {
     await setState("incremental_since", "");
     await setState("catalog_at", 0);
-    await setState("backfill", { offset: 0, done: false });
+    await setState("backfill_desc", { offset: 0, done: false });
     say("cursores reiniciados");
   }
   const [run] = await db.insert(schema.syncRuns).values({}).returning();
@@ -165,14 +165,15 @@ async function main() {
       say("catálogo actualizado");
     }
 
-    // 4) Histórico (1957 → hoy) con el presupuesto sobrante
-    const bf = await getState<{ offset: number; done: boolean }>("backfill", { offset: 0, done: false });
+    // 4) Histórico (hoy → 1957) con el presupuesto sobrante. Descendente: primero lo reciente.
+    // Si entran lanzamientos nuevos en "previous" el offset se desplaza hacia atrás → solo repite, nunca salta.
+    const bf = await getState<{ offset: number; done: boolean }>("backfill_desc", { offset: 0, done: false });
     if (!bf.done && client.remaining > 0) {
       let n = 0;
-      const r = await paged(client, "/launches/previous/", { mode: "normal", ordering: "net", offset: bf.offset }, async (res) => {
+      const r = await paged(client, "/launches/previous/", { mode: "normal", ordering: "-net", offset: bf.offset }, async (res) => {
         n += await saveLaunches(res);
       });
-      await setState("backfill", r);
+      await setState("backfill_desc", r);
       upserted += n;
       say(`histórico: +${n} (offset ${r.offset}, completo: ${r.done})`);
     }

@@ -1,26 +1,93 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ───────── Tokens: sala de operaciones, sobria y oscura ───────── */
+@theme {
+  --color-bg: #07090d;
+  --color-surface: #0d1117;
+  --color-surface-2: #121821;
+  --color-surface-3: #18202b;
+  --color-line: #1c2530;
+  --color-line-strong: #283343;
+  --color-fg: #e6eaf0;
+  --color-fg-muted: #8a96a6;
+  --color-fg-dim: #5b6676;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-accent: #ff5b1f;
+  --color-accent-soft: #ff5b1f1f;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --color-go: #2bd67b;
+  --color-tbc: #f5b83d;
+  --color-tbd: #6b7788;
+  --color-hold: #ff8a3d;
+  --color-flight: #38c6f4;
+  --color-success: #3fb97a;
+  --color-failure: #ff4d4f;
+  --color-partial: #b48cf2;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
   }
 }
 
+html {
+  color-scheme: dark;
+  background: var(--color-bg);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Cifras siempre tabulares */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Etiqueta tipo HUD */
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-fg-dim);
+}
+
+/* Retícula sutil de fondo */
+.grid-bg {
+  background-image:
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: -1px -1px;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #000;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
