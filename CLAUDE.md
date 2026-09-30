@@ -18,7 +18,7 @@ Uso bajo (universitario): elegir siempre la **mejor** opción gratuita, aunque r
 - Sin telemetría ni trayectorias simuladas. Las posiciones orbitales se etiquetan "calculada (SGP4) desde elementos orbitales, época X".
 - El clima es contexto; nunca predice cancelaciones.
 - Cuenta regresiva local, respetando `net_precision`.
-- Atribución visible: The Space Devs, OpenStreetMap/OpenMapTiles/OpenFreeMap, Open-Meteo, CelesTrak.
+- Atribución visible: The Space Devs, MapTiler/OpenStreetMap/OpenFreeMap, Open-Meteo, CelesTrak.
 - No traducir nombres oficiales (misiones, cohetes, agencias, bases).
 - Estética: oscura, sobria, con un solo acento naranja `#FF5B1F`, Geist + mono. Nada de gradientes morados ni radios grandes.
 - Si una API complementaria cae, solo se oculta su módulo.

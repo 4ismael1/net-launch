@@ -110,7 +110,7 @@ Reglas: se carga en diferido, versión ligera en móviles o GPU débil, estátic
 
 ## 7. Páginas
 
-`/` landing + dashboard · `/mapa` · `/lanzamientos` (explorador próximos/pasados) · `/lanzamientos/[slug]` · `/organizaciones` + `[id]` · `/bases` + `[id]` (base → pads) · `/vehiculos/[id]` · `/estadisticas` · `/orbita/[launch]` · `/metodologia` · búsqueda global Ctrl+K.
+`/` landing (portada narrativa, solo la primera vez; botón "Entrar") · `/panel` **dashboard = corazón de la app** (vista de centro de control con barra superior de NEXT LAUNCH, mapa, lista de próximos, métricas, actividad reciente) · `/mapa` · `/lanzamientos` (explorador próximos/pasados) · `/lanzamientos/[slug]` · `/organizaciones` + `[id]` · `/bases` + `[id]` (base → pads) · `/vehiculos/[id]` · `/estadisticas` · `/orbita/[launch]` · `/metodologia` · búsqueda global Ctrl+K.
 
 ## 8. Modelo de datos (resumen)
 
@@ -138,3 +138,17 @@ Reglas: se carga en diferido, versión ligera en móviles o GPU débil, estátic
 - Cuentas gratis: **GitHub**, **Vercel**, **Neon** (F1) · **MapTiler** (F3) · **PostHog** y **Sentry** (F11).
 - Node.js 20+ instalado.
 - Opcional: API key de LL2 vía Patreon para acelerar el backfill (no es necesaria).
+
+## 11. Ampliación (2026-09-30): estructura de la app y más fuentes
+
+**Estructura de la app (tipo Linear/Vercel):** menú lateral fijo (colapsable a iconos; en móvil, barra inferior), barra superior con búsqueda Ctrl+K y el chip de NEXT LAUNCH siempre visible, y un mismo layout en todas las secciones. Menú: Panel · Mapa · Lanzamientos · Eventos · En el espacio · Organizaciones · Bases · Vehículos · Estadísticas · Noticias · Metodología.
+
+**Fuentes añadidas:**
+| Fuente | Aporta | Cuenta |
+|---|---|---|
+| LL2 (otros endpoints) | Eventos (acoplamientos, EVAs), astronautas, estaciones espaciales, naves, expediciones → sección "En el espacio ahora" | No (mismo sync) |
+| Wikipedia REST (es) | Resúmenes en **español** de organizaciones, cohetes y bases (caché en BD) | No |
+| DeepL API Free | Traducción al español de las descripciones de misiones de LL2 (500k caracteres/mes, caché en BD, etiqueta "traducción automática") | Sí (pide tarjeta solo para verificar) |
+| NOAA SWPC | Clima espacial (índice Kp, fulguraciones) como contexto | No |
+| NASA APOD (api.nasa.gov) | Imagen astronómica del día en el panel | Sí (key gratis) |
+| CelesTrak + satellite.js | Posición **calculada** de la ISS y Tiangong en el mapa | No |
