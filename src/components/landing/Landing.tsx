@@ -132,7 +132,7 @@ export function Landing({ data }: { data: LandingData }) {
             const inTour = tour.isActive;
             let best = y, bestD = Infinity;
             for (const p of anchors()) { const d = Math.abs(p - y); if (d < bestD) { bestD = d; best = p; } }
-            if (bestD > 3 && (inTour || bestD < vh * 0.45)) {
+            if (bestD > 3 && (inTour || bestD < vh * 0.6)) {
               snapping = true;
               lenis.scrollTo(best, { duration: 0.75, onComplete: () => { snapping = false; } });
               setTimeout(() => { snapping = false; }, 1000);
