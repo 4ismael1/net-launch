@@ -11,14 +11,7 @@ function cached() {
   cacheLife({ stale: 120, revalidate: 900, expire: 7200 });
 }
 
-export const AGENCY_TYPES: Record<string, string> = {
-  Government: "Gubernamental",
-  Commercial: "Comercial",
-  Multinational: "Multinacional",
-  Private: "Privada",
-  Educational: "Educativa",
-};
-export const typeLabel = (t: string | null | undefined) => (t && AGENCY_TYPES[t]) || t || "—";
+export { AGENCY_TYPES, typeLabel } from "./entities-labels";
 
 const launchCols = {
   id: L.id, slug: L.slug, name: L.name, statusAbbrev: L.statusAbbrev, statusName: L.statusName, net: L.net,

@@ -2,7 +2,8 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { getKpis, getNextLaunch, getPadPoints } from "./launches";
+import { getKpis, getNextLaunch, getPadPoints, getUpcoming } from "./launches";
+import { listOrganizations } from "./entities";
 import { getStats } from "./stats";
 
 // Paradas del recorrido: bases de regiones distintas (se buscan por nombre en los datos).
@@ -21,7 +22,7 @@ export async function getLandingData() {
   cacheTag("ll2");
   cacheLife({ stale: 60, revalidate: 300, expire: 3600 });
 
-  const [next, pads, kpis, stats, agencies, stops] = await Promise.all([
+  const [next, pads, kpis, stats, agencies, stops, upcoming, orgs] = await Promise.all([
     getNextLaunch(),
     getPadPoints(),
     getKpis(),
@@ -43,7 +44,13 @@ export async function getLandingData() {
         return rows[0] ? { ...rows[0], region: t.region } : null;
       }),
     ),
+    getUpcoming(10),
+    listOrganizations({ orden: "menos" }),
   ]);
+
+  // Organizaciones activas (último año o con próximos) y poco visibles (< 25 lanzamientos en total)
+  const active = orgs.filter((o) => o.recent > 0 || o.upcoming > 0);
+  const lesser = active.filter((o) => (o.total ?? o.known) < 25);
 
   return {
     next,
@@ -53,6 +60,10 @@ export async function getLandingData() {
     topOperator: stats.operators[0]?.name ?? null,
     fragments: agencies.rows.map((a) => a.abbrev && a.abbrev.length <= 8 ? a.abbrev : a.name),
     stops: stops.filter((s): s is NonNullable<typeof s> => !!s),
+    upcoming: upcoming.map((l) => ({ slug: l.slug, name: l.missionName ?? l.name, rocket: l.rocketName, provider: l.providerAbbrev ?? l.providerName, country: l.countryCode, net: l.net, precision: l.netPrecision, status: l.statusAbbrev })),
+    activeOperators: active.length,
+    lesserCount: lesser.length,
+    lesser: lesser.filter((o) => o.logo_url).slice(0, 10).map((o) => ({ id: o.id, name: o.name, type: o.type, countries: o.country_codes ?? [], logo: o.logo_url, total: o.total ?? o.known, upcoming: o.upcoming, recent: o.recent })),
   };
 }
 
