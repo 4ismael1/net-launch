@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Info } from "lucide-react";
 import { CATEGORIES, FEATURED, GROUPS, type GroupKey } from "@/lib/satellites";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { SatExplorer } from "@/components/orbit/SatExplorer";
 
 export const metadata: Metadata = { title: "Satélites" };
@@ -10,9 +9,11 @@ export const metadata: Metadata = { title: "Satélites" };
 export default function Page() {
   const groups = (Object.keys(GROUPS) as GroupKey[]).map((key) => ({ key, ...GROUPS[key] }));
   return (
-    <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)] gap-4">
-      <PageHeader eyebrow="Explorar" title="Satélites en tiempo real"
-        description="Activa y combina grupos del catálogo público de CelesTrak (estaciones, Starlink, OneWeb, GPS, Galileo, meteorológicos, ciencia…) y míralos moverse alrededor de la Tierra." />
+    <div className="mx-auto grid max-w-[1600px] grid-cols-[minmax(0,1fr)] gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <h1 className="text-xl font-semibold tracking-tight">Satélites en tiempo real</h1>
+        <p className="text-sm text-fg-muted">Activa y combina grupos del catálogo público de CelesTrak y míralos moverse alrededor de la Tierra.</p>
+      </div>
       <Suspense fallback={<div className="h-[70vh] animate-pulse rounded-lg border border-line bg-surface" />}>
         <SatExplorer groups={groups} categories={CATEGORIES} featured={FEATURED} />
       </Suspense>

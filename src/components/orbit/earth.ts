@@ -34,27 +34,50 @@ export function buildEarth(scene: THREE.Scene) {
   return earth;
 }
 
-/** Cámara orbital con arrastre y rueda; devuelve la función de actualización y la limpieza. */
+/** Cámara orbital: arrastre, rueda, pellizco táctil, giro automático pausable y reencuadre. */
 export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera, dist: number) {
-  let az = 0.6, el = 0.35, dragging = false, px = 0, py = 0, zoom = dist, maxZoom = dist * 2.5;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const down = (e: PointerEvent) => { dragging = true; px = e.clientX; py = e.clientY; host.setPointerCapture(e.pointerId); };
+  let az = 0.6, el = 0.35, zoom = dist, maxZoom = dist * 2.5, home = dist;
+  let auto = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let dragging = false, px = 0, py = 0;
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinch = 0;
+  const clampZoom = (z: number) => Math.max(1.4, Math.min(maxZoom, z));
+  const down = (e: PointerEvent) => {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    host.setPointerCapture(e.pointerId);
+    if (pointers.size === 1) { dragging = true; px = e.clientX; py = e.clientY; }
+    if (pointers.size === 2) { const [p1, p2] = [...pointers.values()]; pinch = Math.hypot(p1.x - p2.x, p1.y - p2.y); dragging = false; }
+  };
   const move = (e: PointerEvent) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [p1, p2] = [...pointers.values()];
+      const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      if (pinch > 0) zoom = clampZoom(zoom * (pinch / d));
+      pinch = d;
+      return;
+    }
     if (!dragging) return;
     az -= (e.clientX - px) * 0.006; el = Math.max(-1.3, Math.min(1.3, el + (e.clientY - py) * 0.006));
     px = e.clientX; py = e.clientY;
   };
-  const up = () => { dragging = false; };
-  const wheel = (e: WheelEvent) => { e.preventDefault(); zoom = Math.max(1.6, Math.min(maxZoom, zoom * (1 + Math.sign(e.deltaY) * 0.1))); };
+  const up = (e: PointerEvent) => { pointers.delete(e.pointerId); if (pointers.size < 2) pinch = 0; if (pointers.size === 0) dragging = false; };
+  const wheel = (e: WheelEvent) => { e.preventDefault(); zoom = clampZoom(zoom * (1 + Math.sign(e.deltaY) * 0.1)); };
   host.addEventListener("pointerdown", down);
   host.addEventListener("pointermove", move);
   host.addEventListener("pointerup", up);
+  host.addEventListener("pointercancel", up);
   host.addEventListener("wheel", wheel, { passive: false });
   return {
     /** Ajusta la distancia (p. ej. al cambiar de conjunto de satélites). */
-    setDistance(d: number) { zoom = d; maxZoom = Math.max(d * 2.5, 12); },
+    setDistance(d: number) { zoom = d; home = d; maxZoom = Math.max(d * 2.5, 12); },
+    zoomBy(f: number) { zoom = clampZoom(zoom * f); },
+    reset() { zoom = home; az = 0.6; el = 0.35; },
+    setAuto(v: boolean) { auto = v; },
+    get auto() { return auto; },
     update() {
-      if (!dragging && !reduce) az += 0.0006;
+      if (!dragging && pointers.size === 0 && auto) az += 0.0006;
       camera.position.set(zoom * Math.cos(el) * Math.sin(az), zoom * Math.sin(el), zoom * Math.cos(el) * Math.cos(az));
       camera.lookAt(0, 0, 0);
     },
@@ -62,6 +85,7 @@ export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera
       host.removeEventListener("pointerdown", down);
       host.removeEventListener("pointermove", move);
       host.removeEventListener("pointerup", up);
+      host.removeEventListener("pointercancel", up);
       host.removeEventListener("wheel", wheel);
     },
   };

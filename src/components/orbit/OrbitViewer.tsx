@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { Maximize2, Minus, Pause, Play, Plus } from "lucide-react";
+import { orbitControls } from "./earth";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, type SatRec } from "@/lib/sgp4";
@@ -26,6 +28,16 @@ type Live = { name: string; lat: number; lon: number; alt: number; color: string
 export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?: number }) {
   const el = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState<Live[]>([]);
+  const ctlRef = useRef<ReturnType<typeof orbitControls> | null>(null);
+  const [spin, setSpin] = useState(true);
+  function control(kind: "spin" | "in" | "out" | "reset") {
+    const c = ctlRef.current;
+    if (!c) return;
+    if (kind === "spin") { c.setAuto(!spin); setSpin(!spin); }
+    else if (kind === "in") c.zoomBy(0.8);
+    else if (kind === "out") c.zoomBy(1.25);
+    else c.reset();
+  }
 
   useEffect(() => {
     const host = el.current;
@@ -87,20 +99,8 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
       markers.push(mk);
     }
     const dist = Math.min(Math.max(maxR * 2.3, 3.2), 16);
-    let az = 0.6, el2 = 0.35, dragging = false, px = 0, py = 0, zoom = dist;
-
-    const onDown = (e: PointerEvent) => { dragging = true; px = e.clientX; py = e.clientY; host.setPointerCapture(e.pointerId); };
-    const onMove = (e: PointerEvent) => {
-      if (!dragging) return;
-      az -= (e.clientX - px) * 0.006; el2 = Math.max(-1.3, Math.min(1.3, el2 + (e.clientY - py) * 0.006));
-      px = e.clientX; py = e.clientY;
-    };
-    const onUp = () => { dragging = false; };
-    const onWheel = (e: WheelEvent) => { e.preventDefault(); zoom = Math.max(1.8, Math.min(dist * 2, zoom * (1 + Math.sign(e.deltaY) * 0.1))); };
-    host.addEventListener("pointerdown", onDown);
-    host.addEventListener("pointermove", onMove);
-    host.addEventListener("pointerup", onUp);
-    host.addEventListener("wheel", onWheel, { passive: false });
+    const ctl = orbitControls(host, camera, dist);
+    ctlRef.current = ctl;
 
     const resize = () => {
       const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight);
@@ -113,7 +113,6 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
     resize();
 
     let raf = 0, lastLive = 0;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const tick = (t: number) => {
       const date = new Date();
       const g = gstime(date);
@@ -130,9 +129,7 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
         }
       });
       if (liveNow.length) { setLive(liveNow); lastLive = t; }
-      if (!dragging && !reduce) az += 0.0006;
-      camera.position.set(zoom * Math.cos(el2) * Math.sin(az), zoom * Math.sin(el2), zoom * Math.cos(el2) * Math.cos(az));
-      camera.lookAt(0, 0, 0);
+      ctl.update();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
     };
@@ -141,7 +138,8 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      host.removeEventListener("wheel", onWheel);
+      ctl.dispose();
+      ctlRef.current = null;
       renderer.dispose();
       host.innerHTML = "";
     };
@@ -150,6 +148,12 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
   return (
     <div className="relative">
       <div ref={el} style={{ height }} className="w-full cursor-grab touch-none active:cursor-grabbing" role="img" aria-label="Órbitas calculadas alrededor de la Tierra" />
+      <div className="absolute top-3 right-3 flex flex-col gap-1">
+        <CtlBtn label={spin ? "Pausar giro automático" : "Reanudar giro automático"} onClick={() => control("spin")}>{spin ? <Pause className="size-4" /> : <Play className="size-4" />}</CtlBtn>
+        <CtlBtn label="Acercar" onClick={() => control("in")}><Plus className="size-4" /></CtlBtn>
+        <CtlBtn label="Alejar" onClick={() => control("out")}><Minus className="size-4" /></CtlBtn>
+        <CtlBtn label="Reencuadrar" onClick={() => control("reset")}><Maximize2 className="size-4" /></CtlBtn>
+      </div>
       {live.length > 0 && (
         <ul className="pointer-events-none space-y-1 border-t border-line bg-bg/80 p-2.5 text-[11px] backdrop-blur md:absolute md:top-3 md:left-3 md:rounded-md md:border">
           {live.slice(0, 6).map((l) => (
@@ -165,5 +169,12 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
         Posición calculada (SGP4) a partir de elementos orbitales publicados por CelesTrak. No es telemetría en vivo.
       </p>
     </div>
+  );
+}
+
+function CtlBtn({ children, label, onClick }: { children: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={label} aria-label={label}
+      className="flex size-8 items-center justify-center rounded-md border border-line bg-bg/85 text-fg-muted backdrop-blur hover:text-fg">{children}</button>
   );
 }

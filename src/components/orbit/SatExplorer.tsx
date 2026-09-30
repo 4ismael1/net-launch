@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
-import { ArrowUpRight, Check, Loader2, Search, X } from "lucide-react";
+import { ArrowUpRight, Check, Info, Loader2, Maximize2, Minus, Pause, Play, Plus, Radio, Search, X } from "lucide-react";
 import type { OMM } from "@/lib/orbit";
 import type { GroupCategory } from "@/lib/satellites";
 import { SatEngine, type LiveInfo } from "./SatEngine";
@@ -41,6 +41,10 @@ export function SatExplorer({ groups, categories, featured }: {
   const [results, setResults] = useState<{ norad: number; name: string; id: string }[] | null>(null);
   const [warn, setWarn] = useState<string | null>(null);
   const [icons, setIcons] = useState<Partial<Record<IconKind, string>>>({});
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [spin, setSpin] = useState(true);
+  const [warp, setWarp] = useState(1);
+  const [simTime, setSimTime] = useState<number | null>(null);
 
   const colorOf = (g: string) => (g === EXTRA ? "#ffffff" : PALETTE[selected.indexOf(g)] ?? "#8f8b82");
 
@@ -87,6 +91,14 @@ export function SatExplorer({ groups, categories, featured }: {
   }, [visible]);
 
   useEffect(() => { engine.current?.selectNorad(focus); }, [focus]);
+
+  // Reloj mostrado (hora real o simulada)
+  useEffect(() => {
+    const iv = setInterval(() => setSimTime(engine.current?.time ?? null), 500);
+    return () => clearInterval(iv);
+  }, []);
+  const changeWarp = (w: number) => { engine.current?.setWarp(w); setWarp(w); };
+  const toggleSpin = () => { const v = !spin; engine.current?.setAutoRotate(v); setSpin(v); };
 
   // Datos en vivo del seleccionado
   useEffect(() => {
@@ -142,9 +154,9 @@ export function SatExplorer({ groups, categories, featured }: {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      <div className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-lg border border-line bg-surface lg:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-lg border border-line bg-surface lg:h-[max(560px,calc(100dvh-150px))] lg:grid-cols-[280px_minmax(0,1fr)]">
         {/* Filtros */}
-        <aside className="border-b border-line lg:max-h-[calc(100dvh-140px)] lg:overflow-y-auto lg:border-r lg:border-b-0">
+        <aside className="border-b border-line lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-b-0">
           <div className="border-b border-line p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-fg-dim" />
@@ -193,49 +205,80 @@ export function SatExplorer({ groups, categories, featured }: {
           </div>
         </aside>
 
-        {/* Globo */}
-        <div className="relative min-h-[520px] lg:h-[calc(100dvh-140px)]">
-          <div ref={host} className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing" role="img" aria-label="Satélites seleccionados alrededor de la Tierra, en tiempo real" />
-          {hover && <div className="pointer-events-none absolute z-10 rounded-md border border-line bg-bg/90 px-2 py-1 text-xs backdrop-blur" style={{ left: hover.x + 12, top: hover.y + 12 }}>{hover.name}</div>}
-
-          <div className="pointer-events-none absolute top-3 left-3 max-w-[70%] rounded-md border border-line bg-bg/80 p-2.5 text-[11px] backdrop-blur">
-            <p className="num text-[13px] text-fg">{total.toLocaleString("es")} objetos en tiempo real</p>
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+        {/* Globo: barra de estado arriba (fuera del globo) + lienzo a pantalla completa */}
+        <div className="flex min-h-0 flex-col">
+          <div className="relative flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-line px-4 py-2.5 text-xs">
+            <span className="num text-[13px] text-fg">{total.toLocaleString("es")} <span className="text-fg-muted">en tiempo real</span></span>
+            <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-1">
               {selected.map((g) => (
-                <span key={g} className="flex items-center gap-1.5 text-fg-muted"><span className="size-2 rounded-full" style={{ background: colorOf(g) }} />{groups.find((x) => x.key === g)?.label}</span>
+                <span key={g} className="flex items-center gap-1.5 whitespace-nowrap text-fg-muted"><span className="size-2 rounded-full" style={{ background: colorOf(g) }} />{groups.find((x) => x.key === g)?.label}</span>
               ))}
-            </div>
-            <div className="mt-2 hidden flex-wrap gap-x-3 gap-y-1 border-t border-line pt-2 md:flex">
-              {(Object.keys(ICON_LABEL) as IconKind[]).map((k) => icons[k] && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <span key={k} className="flex items-center gap-1 text-fg-dim"><img src={icons[k]} alt="" className="size-3.5 opacity-80" />{ICON_LABEL[k]}</span>
-              ))}
-            </div>
+            </span>
+            <button onClick={() => setLegendOpen((o) => !o)} aria-expanded={legendOpen}
+              className={clsx("inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs", legendOpen ? "border-line-strong text-fg" : "border-line text-fg-muted hover:text-fg")}>
+              <Info className="size-3.5" /> Leyenda
+            </button>
+            {legendOpen && (
+              <div className="absolute top-full right-3 z-20 mt-1 grid w-64 grid-cols-1 gap-1.5 rounded-md border border-line-strong bg-surface-2 p-3 shadow-2xl">
+                {(Object.keys(ICON_LABEL) as IconKind[]).map((k) => (
+                  <span key={k} className="flex items-center gap-2 text-fg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {icons[k] && <img src={icons[k]} alt="" className="size-5" />}{ICON_LABEL[k]}
+                  </span>
+                ))}
+                <p className="mt-1 border-t border-line pt-2 text-[10.5px] leading-snug text-fg-dim">El color indica el grupo; la forma, el tipo de objeto. Posiciones calculadas (SGP4 + velocidad) con elementos de CelesTrak.</p>
+              </div>
+            )}
           </div>
 
-          {shown && (
-            <div className="absolute right-3 bottom-3 left-3 rounded-lg border border-line-strong bg-bg/90 p-4 backdrop-blur md:left-auto md:w-80">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="label mb-0.5">{focusGroup} · NORAD {shown.norad}</p>
-                  <p className="truncate font-medium">{shown.name}</p>
-                </div>
-                <button onClick={() => setFocus(null)} className="rounded p-1 text-fg-dim hover:bg-surface-3 hover:text-fg" aria-label="Cerrar"><X className="size-4" /></button>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <div><p className="label">Latitud</p><p className="num">{f(shown.lat, 3)}°</p></div>
-                <div><p className="label">Longitud</p><p className="num">{f(shown.lon, 3)}°</p></div>
-                <div><p className="label">Altitud</p><p className="num">{f(shown.alt, 1)} km</p></div>
-                <div><p className="label">Velocidad</p><p className="num">{f(shown.speed * 3600)} km/h</p></div>
-              </div>
-              <Link href={`/satelites/${shown.norad}`} className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline">
-                Ficha completa, traza y pasos sobre ti <ArrowUpRight className="size-4" />
-              </Link>
+          <div className="relative min-h-[420px] flex-1">
+            <div ref={host} className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing" role="img" aria-label="Satélites seleccionados alrededor de la Tierra, en tiempo real" />
+            {hover && <div className="pointer-events-none absolute z-10 rounded-md border border-line bg-bg/90 px-2 py-1 text-xs backdrop-blur" style={{ left: hover.x + 12, top: hover.y + 12 }}>{hover.name}</div>}
+            {!shown && total > 0 && <p className="pointer-events-none absolute bottom-3 left-3 hidden text-[11px] text-fg-dim sm:block">Arrastra para girar · rueda o pellizco para acercar · clic en un satélite para seguirlo</p>}
+
+            {/* Controles de vista */}
+            <div className="absolute top-3 right-3 flex flex-col gap-1">
+              <CtlBtn label={spin ? "Pausar giro automático" : "Reanudar giro automático"} onClick={toggleSpin} active={spin}>{spin ? <Pause className="size-4" /> : <Play className="size-4" />}</CtlBtn>
+              <CtlBtn label="Acercar" onClick={() => engine.current?.zoomBy(0.8)}><Plus className="size-4" /></CtlBtn>
+              <CtlBtn label="Alejar" onClick={() => engine.current?.zoomBy(1.25)}><Minus className="size-4" /></CtlBtn>
+              <CtlBtn label="Reencuadrar" onClick={() => engine.current?.resetView()}><Maximize2 className="size-4" /></CtlBtn>
             </div>
-          )}
-          <p className="pointer-events-none absolute right-3 bottom-3 hidden max-w-xs text-right text-[10.5px] text-fg-dim md:block" style={{ display: shown ? "none" : undefined }}>
-            Posiciones calculadas en tiempo real (SGP4 + velocidad) con elementos de CelesTrak. Clic en un satélite para seguirlo.
-          </p>
+
+            {/* Reloj y velocidad del tiempo */}
+            <div className="absolute top-3 left-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-bg/85 p-1 text-xs backdrop-blur">
+              <span className={clsx("flex items-center gap-1.5 px-1.5", warp === 1 ? "text-go" : "text-tbc")}>
+                {warp === 1 ? <><Radio className="size-3.5" /> En vivo</> : <>Tiempo ×{warp}</>}
+                {simTime && <span className="num text-fg-muted">{new Date(simTime).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
+              </span>
+              <span className="flex rounded bg-surface-2 p-0.5">
+                {[1, 10, 60, 600].map((w) => (
+                  <button key={w} onClick={() => changeWarp(w)} aria-pressed={warp === w}
+                    className={clsx("num rounded px-1.5 py-0.5", warp === w ? "bg-surface-3 text-fg" : "text-fg-dim hover:text-fg")}>×{w}</button>
+                ))}
+              </span>
+            </div>
+
+            {shown && (
+              <div className="absolute right-3 bottom-3 left-3 rounded-lg border border-line-strong bg-bg/90 p-3.5 backdrop-blur md:left-auto md:w-72">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="label mb-0.5 truncate">{focusGroup} · NORAD {shown.norad}</p>
+                    <p className="truncate font-medium">{shown.name}</p>
+                  </div>
+                  <button onClick={() => setFocus(null)} className="rounded p-1 text-fg-dim hover:bg-surface-3 hover:text-fg" aria-label="Cerrar"><X className="size-4" /></button>
+                </div>
+                <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                  <div><p className="label">Latitud</p><p className="num">{f(shown.lat, 3)}°</p></div>
+                  <div><p className="label">Longitud</p><p className="num">{f(shown.lon, 3)}°</p></div>
+                  <div><p className="label">Altitud</p><p className="num">{f(shown.alt, 1)} km</p></div>
+                  <div><p className="label">Velocidad</p><p className="num">{f(shown.speed * 3600)} km/h</p></div>
+                </div>
+                <Link href={`/satelites/${shown.norad}`} className="mt-2.5 inline-flex items-center gap-1 text-sm text-accent hover:underline">
+                  Ficha, traza y pasos sobre ti <ArrowUpRight className="size-4" />
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -246,5 +289,14 @@ export function SatExplorer({ groups, categories, featured }: {
         </details>
       )}
     </div>
+  );
+}
+
+function CtlBtn({ children, label, onClick, active }: { children: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button onClick={onClick} title={label} aria-label={label}
+      className={clsx("flex size-8 items-center justify-center rounded-md border bg-bg/85 backdrop-blur transition-colors", active ? "border-line-strong text-fg" : "border-line text-fg-muted hover:text-fg")}>
+      {children}
+    </button>
   );
 }

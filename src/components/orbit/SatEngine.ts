@@ -31,6 +31,10 @@ export class SatEngine {
   private marker: THREE.Group;
   private orbitLine: THREE.Line | null = null;
   private raycaster = new THREE.Raycaster();
+  // Reloj: en ×1 es exactamente la hora real; con aceleración avanza más rápido y se indica en la interfaz.
+  private warp = 1;
+  private simMs = Date.now();
+  private lastReal = Date.now();
   private atlas: THREE.CanvasTexture | null = null;
   private material: THREE.ShaderMaterial | null = null;
   onPick: (norad: number | null) => void = () => {};
@@ -81,7 +85,7 @@ export class SatEngine {
     const col = new Float32Array(n * 3);
     const shape = new Float32Array(n);
     list.forEach((s, i) => { const c = new THREE.Color(s.color); col.set([c.r, c.g, c.b], i * 3); shape[i] = ICON_KINDS.indexOf(s.icon); });
-    const now = Date.now();
+    const now = this.simMs;
     for (let i = 0; i < n; i++) this.reanchor(i, now);
     this.geo.dispose();
     this.geo = new THREE.BufferGeometry();
@@ -97,13 +101,13 @@ export class SatEngine {
     this.material?.dispose();
     this.material = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false,
-      uniforms: { atlas: { value: this.atlas }, size: { value: n > 3000 ? 0.022 : n > 600 ? 0.034 : 0.05 }, scale: { value: this.host.clientHeight / 2 } },
+      uniforms: { atlas: { value: this.atlas }, size: { value: n > 3000 ? 0.045 : n > 600 ? 0.075 : 0.13 }, minPx: { value: n > 3000 ? 6 : n > 600 ? 10 : 16 }, scale: { value: this.host.clientHeight / 2 } },
       vertexShader: `
-        attribute float shape; attribute vec3 color; varying vec3 vColor; varying float vShape; uniform float size; uniform float scale;
+        attribute float shape; attribute vec3 color; varying vec3 vColor; varying float vShape; uniform float size; uniform float scale; uniform float minPx;
         void main() {
           vColor = color; vShape = shape;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = clamp(size * scale / -mv.z, 7.0, 34.0);
+          gl_PointSize = clamp(size * scale / -mv.z, minPx, 44.0);
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `
@@ -143,10 +147,13 @@ export class SatEngine {
   }
 
   private loop = () => {
-    const now = Date.now();
+    const real = Date.now();
+    this.simMs = this.warp === 1 ? real : this.simMs + (real - this.lastReal) * this.warp;
+    this.lastReal = real;
+    const now = this.simMs;
     const n = this.sats.length;
     // Re-anclaje escalonado: cada satélite pasa por SGP4 aproximadamente una vez por segundo
-    const batch = Math.min(n, Math.max(40, Math.ceil(n / 60)));
+    const batch = Math.min(n, Math.max(40, Math.ceil((n / 60) * Math.min(this.warp, 20))));
     for (let k = 0; k < batch && n; k++) { this.reanchor(this.cursor, now); this.cursor = (this.cursor + 1) % n; }
     for (let i = 0; i < n; i++) {
       const dt = (now - this.tAnchor[i]) / 1000, j = i * 3;
@@ -187,7 +194,7 @@ export class SatEngine {
     if (this.orbitLine) { this.scene.remove(this.orbitLine); this.orbitLine.geometry.dispose(); this.orbitLine = null; }
     const rec = i >= 0 ? this.recs[i] : null;
     if (!rec) return;
-    const period = (1440 / this.sats[i].omm.MEAN_MOTION) * 60_000, t0 = Date.now(), pts: THREE.Vector3[] = [];
+    const period = (1440 / this.sats[i].omm.MEAN_MOTION) * 60_000, t0 = this.simMs, pts: THREE.Vector3[] = [];
     for (let k = 0; k <= 200; k++) {
       const pv = propagate(rec, new Date(t0 + (period * k) / 200));
       if (pv?.position && typeof pv.position !== "boolean") pts.push(eciToThree(pv.position));
@@ -205,13 +212,26 @@ export class SatEngine {
     const i = this.sats.findIndex((s) => s.omm.NORAD_CAT_ID === norad);
     const rec = i >= 0 ? this.recs[i] : null;
     if (!rec) return null;
-    const d = new Date();
+    const d = new Date(this.simMs);
     const pv = propagate(rec, d);
     if (!pv?.position || typeof pv.position === "boolean" || !pv.velocity || typeof pv.velocity === "boolean") return null;
     const g = eciToGeodetic(pv.position, gstime(d));
     const s = this.sats[i];
     return { norad, name: s.omm.OBJECT_NAME, group: s.group, lat: degreesLat(g.latitude), lon: degreesLong(g.longitude), alt: g.height, speed: Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z) };
   }
+
+  /** Controles de la vista y del tiempo. */
+  setWarp(w: number) {
+    if (w === 1) this.simMs = Date.now();
+    this.warp = w;
+    // Re-anclar todo al cambiar de ritmo para que no haya saltos
+    for (let i = 0; i < this.sats.length; i++) this.reanchor(i, this.simMs);
+  }
+  get time() { return this.simMs; }
+  setAutoRotate(v: boolean) { this.ctl.setAuto(v); }
+  get autoRotate() { return this.ctl.auto; }
+  zoomBy(f: number) { this.ctl.zoomBy(f); }
+  resetView() { this.ctl.reset(); }
 
   dispose() {
     cancelAnimationFrame(this.raf);
