@@ -29,7 +29,7 @@ export function YearBars({ data }: { data: { year: number; success: number; fail
           return (
             <g key={r.year}>
               <title>{`${r.year}: ${r.success} éxitos, ${r.failure} fallos`}</title>
-              <rect x={x} y={H - hs} width={bw} height={hs} rx={1.5} fill="var(--color-success)" opacity={0.85} />
+              <rect x={x} y={H - hs} width={bw} height={hs} rx={1.5} fill="#9c988e" />
               <rect x={x} y={H - hs - hf} width={bw} height={hf} rx={1.5} fill="var(--color-failure)" />
               {(rows.length <= 10 || i % Math.ceil(rows.length / 10) === 0 || i === rows.length - 1) && (
                 <text x={x + bw / 2} y={H + 14} textAnchor="middle" fontSize={10} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{`'${String(r.year).slice(-2)}`}</text>
@@ -39,7 +39,7 @@ export function YearBars({ data }: { data: { year: number; success: number; fail
         })}
       </svg>
       <div className="mt-2 flex gap-4 text-[11px] text-fg-muted">
-        <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-success" /> Éxitos</span>
+        <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-[#9c988e]" /> Éxitos</span>
         <span className="flex items-center gap-1.5"><span className="size-2 rounded-sm bg-failure" /> Fallos (total o parcial)</span>
       </div>
     </div>
