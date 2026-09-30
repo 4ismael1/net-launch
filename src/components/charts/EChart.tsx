@@ -10,6 +10,12 @@ import type { EChartsCoreOption } from "echarts/core";
 echarts.use([BarChart, LineChart, HeatmapChart, GridComponent, TooltipComponent, LegendComponent, CalendarComponent, VisualMapComponent, DataZoomComponent, SVGRenderer]);
 
 /** Tokens de gráfica (grafito cálido). Éxito gris / fallo rojo: validado para daltonismo (ΔE 9.1). */
+function resolveFont(cssVar: string, fallback: string) {
+  if (typeof window === "undefined") return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
+  return v ? `${v}, ${fallback}` : fallback;
+}
+
 export const CHART = {
   text: "#a6a39a",
   dim: "#716e66",
@@ -18,12 +24,14 @@ export const CHART = {
   accent: "#ff5b1f",
   success: "#9c988e",
   failure: "#ff4d4f",
-  font: "var(--font-geist-mono), ui-monospace, monospace",
+  // ECharts mide el texto con canvas y NO entiende var(--…): se resuelve el nombre real de la fuente cargada.
+  font: resolveFont("--font-geist-mono", "ui-monospace, monospace"),
+  sans: resolveFont("--font-geist-sans", "ui-sans-serif, system-ui, sans-serif"),
 };
 
 export const baseOption = {
   backgroundColor: "transparent",
-  textStyle: { color: CHART.text, fontFamily: CHART.font, fontSize: 11 },
+  textStyle: { color: CHART.text, fontFamily: CHART.sans, fontSize: 11 },
   animationDuration: 600,
   tooltip: {
     backgroundColor: "#18181699",

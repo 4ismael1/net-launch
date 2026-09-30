@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import clsx from "clsx";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import Lenis from "lenis";
 import {
   ArrowRight, ArrowDown, Map, Rocket, Building2, BarChart3, Orbit, CloudSun, Radio, Search, GraduationCap, Microscope, Telescope,
 } from "lucide-react";
@@ -49,124 +48,81 @@ export function Landing({ data }: { data: LandingData }) {
   useIso(() => {
     gsap.registerPlugin(ScrollTrigger);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const lenis = reduce ? null : new Lenis({ lerp: 0.09 });
-    const raf = (t: number) => lenis?.raf(t * 1000);
-    if (lenis) {
-      lenis.on("scroll", ScrollTrigger.update);
-      gsap.ticker.add(raf);
-      gsap.ticker.lagSmoothing(0);
-    }
 
+    // Scroll NATIVO del navegador (sin librerías que lo intercepten): lo más fiable y cómodo.
+    // Solo el recorrido por las bases está fijado, con encaje nativo de GSAP a cada parada.
     const ctx = gsap.context(() => {
-      gsap.from("[data-hero] > *", { y: 28, opacity: 0, duration: 0.9, stagger: 0.08, ease: "power3.out" });
+      if (!reduce) gsap.from("[data-hero] > *", { y: 28, opacity: 0, duration: 0.9, stagger: 0.08, ease: "power3.out" });
 
       // Capítulo activo + barra de progreso
       CHAPTERS.forEach(([id]) =>
-        ScrollTrigger.create({ trigger: `#${id}`, start: "top 50%", end: "bottom 50%", onToggle: (s) => { if (s.isActive) setChapter(id); } }),
+        ScrollTrigger.create({ trigger: `#${id}`, start: "top 50%", end: "bottom 50%", onToggle: (st) => { if (st.isActive) setChapter(id); } }),
       );
-      gsap.to("[data-progress]", { scaleY: 1, ease: "none", scrollTrigger: { trigger: root.current, start: "top top", end: "bottom bottom", scrub: 0.3 } });
+      gsap.to("[data-progress]", { scaleY: 1, ease: "none", scrollTrigger: { trigger: root.current, start: "top top", end: "bottom bottom", scrub: true } });
 
-      // 02 · dispersión → convergencia
+      // 02 · dispersión → convergencia: se reproduce UNA vez al entrar, sin depender de dónde se suelte el scroll
       const frags = gsap.utils.toArray<HTMLElement>("[data-frag]");
-      const scatterTl = gsap.timeline({ scrollTrigger: { trigger: "[data-scatter]", start: "top top", end: "+=170%", scrub: 0.8, pin: true } });
-      scatterTl
-        .from("[data-scatter-title]", { opacity: 0, y: 30, duration: 0.25 })
-        .fromTo(frags, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, stagger: 0.012, duration: 0.3 }, "<")
-        .to(frags, { left: "50%", top: "55%", xPercent: -50, yPercent: -50, scale: 0.3, opacity: 0, stagger: 0.006, duration: 0.55, ease: "power2.in" }, "+=0.25")
-        .to("[data-scatter-title]", { opacity: 0, y: -30, duration: 0.2 }, "-=0.3")
-        .fromTo("[data-hub]", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.6)" }, "-=0.2");
+      if (reduce) {
+        gsap.set(frags, { opacity: 0 });
+        gsap.set("[data-hub]", { opacity: 1, scale: 1 });
+      } else {
+        gsap.set("[data-hub]", { opacity: 0, scale: 0.8 });
+        gsap.set(frags, { opacity: 0, scale: 0.8 });
+        gsap.timeline({ scrollTrigger: { trigger: "[data-scatter]", start: "top 60%", once: true } })
+          .to(frags, { opacity: 1, scale: 1, stagger: 0.04, duration: 0.5, ease: "power2.out" })
+          .to(frags, { left: "50%", top: "55%", xPercent: -50, yPercent: -50, scale: 0.3, opacity: 0, stagger: 0.02, duration: 0.8, ease: "power3.in" }, "+=0.9")
+          .to("[data-hub]", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, "-=0.35");
+      }
       ScrollTrigger.create({
         trigger: "#problema", start: "top 60%", end: "bottom top",
         onEnter: () => globe.current?.setShift(0), onLeaveBack: () => globe.current?.setShift(0.55),
       });
 
-      // 03 · recorrido fijado: el progreso elige una parada discreta (nunca queda una tarjeta a medias)
+      // 03 · recorrido fijado con paradas discretas y ENCAJE nativo: al soltar, siempre se asienta en una base completa
       const nStops = data.stops.length;
       let lastIdx = -1;
-      const tour = ScrollTrigger.create({
-        trigger: "[data-tour-pin]", start: "top top", end: () => `+=${Math.max(1, nStops - 1) * window.innerHeight}`, pin: true,
+      ScrollTrigger.create({
+        trigger: "[data-tour-pin]", start: "top top", end: () => `+=${Math.max(1, nStops - 1) * window.innerHeight * 0.8}`, pin: true,
+        snap: nStops > 1 ? { snapTo: 1 / (nStops - 1), duration: { min: 0.2, max: 0.55 }, delay: 0.06, ease: "power1.inOut" } : undefined,
         onUpdate: (st) => {
           const idx = Math.min(nStops - 1, Math.round(st.progress * (nStops - 1)));
           if (idx !== lastIdx) {
             lastIdx = idx;
             setStop(idx);
-            const s = data.stops[idx];
-            if (s) globe.current?.setTarget({ lat: s.lat, lng: s.lng, dist: 2.6, shiftX: -0.5, dim: 0 });
+            const st0 = data.stops[idx];
+            if (st0) globe.current?.setTarget({ lat: st0.lat, lng: st0.lng, dist: 2.6, shiftX: -0.5, dim: 0 });
           }
         },
         onLeave: () => { lastIdx = -1; globe.current?.setTarget(null); },
         onLeaveBack: () => { lastIdx = -1; globe.current?.setTarget(null); },
       });
-      // 05 · galería horizontal (solo escritorio)
-      const track = document.querySelector<HTMLElement>("[data-htrack]");
-      let gallery: ScrollTrigger | undefined;
-      if (track && window.matchMedia("(min-width: 768px)").matches && !reduce) {
-        gallery = gsap.to(track, {
-          x: () => -(track.scrollWidth - window.innerWidth + 96), ease: "none",
-          scrollTrigger: { trigger: "[data-hsection]", start: "top top", end: () => `+=${track.scrollWidth}`, scrub: 0.6, pin: true, invalidateOnRefresh: true },
-        }).scrollTrigger;
-      }
 
-      // Encaje global: al soltar el scroll, la página se acomoda en el punto clave más cercano
-      // (inicio de capítulo, final de cada animación fijada o parada del recorrido). Nunca queda a medias.
-      const heads = CHAPTERS.map(([id]) => ScrollTrigger.create({ trigger: `#${id}`, start: "top top" }));
-      const anchors = () => {
-        const a = heads.map((h) => h.start);
-        const st = scatterTl.scrollTrigger;
-        if (st) a.push(st.end);
-        if (gallery) a.push(gallery.end);
-        if (nStops > 1) for (let i = 0; i < nStops; i++) a.push(tour.start + (i * (tour.end - tour.start)) / (nStops - 1));
-        const last = document.querySelector<HTMLElement>("[data-final]");
-        if (last) a.push(ScrollTrigger.maxScroll(window));
-        return a;
-      };
-      if (lenis) {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        let snapping = false;
-        lenis.on("scroll", () => {
-          if (snapping) return;
-          clearTimeout(timer);
-          timer = setTimeout(() => {
-            const y = lenis.scroll, vh = window.innerHeight;
-            // Dentro de un tramo largo de contenido (p. ej. la galería o la cuadrícula) no se fuerza nada
-            const inGallery = gallery && y > gallery.start + vh * 0.4 && y < gallery.end - vh * 0.4;
-            if (inGallery) return;
-            const inTour = tour.isActive;
-            let best = y, bestD = Infinity;
-            for (const p of anchors()) { const d = Math.abs(p - y); if (d < bestD) { bestD = d; best = p; } }
-            if (bestD > 3 && (inTour || bestD < vh * 0.6)) {
-              snapping = true;
-              lenis.scrollTo(best, { duration: 0.75, onComplete: () => { snapping = false; } });
-              setTimeout(() => { snapping = false; }, 1000);
-            }
-          }, 180);
-        });
-      }
-
-      // Cifras que ruedan + apariciones
+      // Cifras que ruedan y apariciones: en cuanto asoman en pantalla, una sola vez
       gsap.utils.toArray<HTMLElement>("[data-count]").forEach((el) => {
         const to = Number(el.dataset.count);
+        if (reduce) { el.textContent = to.toLocaleString("es"); return; }
         const o = { v: 0 };
         gsap.to(o, {
-          v: to, duration: 1.6, ease: "power2.out", scrollTrigger: { trigger: el, start: "top 88%" },
+          v: to, duration: 1.4, ease: "power2.out", scrollTrigger: { trigger: el, start: "top 95%", once: true },
           onUpdate: () => { el.textContent = Math.round(o.v).toLocaleString("es"); },
         });
       });
-      gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((el) =>
-        gsap.from(el, { opacity: 0, y: 32, duration: 0.9, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 85%" } }),
-      );
-      gsap.utils.toArray<HTMLElement>("[data-stagger]").forEach((el) =>
-        gsap.from(el.children, { opacity: 0, y: 28, duration: 0.7, stagger: 0.07, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 80%" } }),
-      );
+      if (!reduce) {
+        gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((el) =>
+          gsap.from(el, { opacity: 0, y: 24, duration: 0.7, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 94%", once: true } }),
+        );
+        gsap.utils.toArray<HTMLElement>("[data-stagger]").forEach((el) =>
+          gsap.from(el.children, { opacity: 0, y: 20, duration: 0.55, stagger: 0.05, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 94%", once: true } }),
+        );
+      }
     }, root);
 
-    return () => {
-      ctx.revert();
-      if (lenis) { gsap.ticker.remove(raf); lenis.destroy(); }
-    };
+    return () => ctx.revert();
   }, []);
 
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  const track = useRef<HTMLDivElement>(null);
+  const slide = (dir: 1 | -1) => track.current?.scrollBy({ left: dir * Math.min(640, track.current.clientWidth * 0.8), behavior: "smooth" });
   const live = useLive();
   const n = live?.next ?? data.next; // en vivo: cambia de estado o al siguiente lanzamiento sin recargar
 
@@ -237,7 +193,7 @@ export function Landing({ data }: { data: LandingData }) {
 
       {/* 02 · EL PROBLEMA */}
       <section id="problema" className="relative z-10">
-        <div data-scatter className="relative h-dvh overflow-hidden">
+        <div data-scatter className="relative h-dvh min-h-[640px] overflow-hidden">
           <div data-scatter-title className="absolute inset-x-0 top-[15%] px-5 text-center">
             <Eyebrow n="02" text="El problema" center />
             <h2 className="mx-auto max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">La información aeroespacial está dispersa.</h2>
@@ -353,15 +309,21 @@ export function Landing({ data }: { data: LandingData }) {
 
       {/* 05 · MENOS CONOCIDOS (galería horizontal) */}
       <section id="visibles" className="relative z-10 bg-bg">
-        <div data-hsection className="flex min-h-dvh flex-col justify-center overflow-hidden py-20">
-          <div className="px-5 md:px-12 lg:px-20" data-reveal>
-            <Eyebrow n="05" text="Menos conocidos" />
-            <h2 className="max-w-2xl text-3xl font-semibold tracking-tight md:text-5xl">También lanzan. Casi nadie lo cuenta.</h2>
+        <div className="flex flex-col justify-center py-24">
+          <div className="flex flex-wrap items-end justify-between gap-4 px-5 md:px-12 lg:px-20" data-reveal>
+            <div>
+              <Eyebrow n="05" text="Menos conocidos" />
+              <h2 className="max-w-2xl text-3xl font-semibold tracking-tight md:text-5xl">También lanzan. Casi nadie lo cuenta.</h2>
+            </div>
+            <div className="hidden gap-2 md:flex">
+              <button onClick={() => slide(-1)} aria-label="Anteriores" className="flex size-10 items-center justify-center rounded-md border border-line-strong hover:bg-surface-2"><ArrowRight className="size-4 rotate-180" /></button>
+              <button onClick={() => slide(1)} aria-label="Siguientes" className="flex size-10 items-center justify-center rounded-md border border-line-strong hover:bg-surface-2"><ArrowRight className="size-4" /></button>
+            </div>
           </div>
-          <div data-htrack className="mt-10 flex gap-3 overflow-x-auto px-5 pb-4 md:overflow-visible md:px-12 lg:px-20">
+          <div ref={track} className="mt-10 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto overscroll-x-contain px-5 pb-4 [scrollbar-width:none] md:scroll-px-12 md:px-12 lg:scroll-px-20 lg:px-20 [&::-webkit-scrollbar]:hidden">
             {data.lesser.map((o) => (
               <Link key={o.id} href={`/organizaciones/${o.id}`}
-                className="group flex min-h-[270px] w-[260px] shrink-0 flex-col rounded-lg border border-line bg-surface p-5 transition-colors hover:border-accent/50 md:w-[300px]">
+                className="group flex min-h-[270px] w-[260px] shrink-0 snap-start flex-col rounded-lg border border-line bg-surface p-5 transition-colors hover:border-accent/50 md:w-[300px]">
                 <div className="flex size-16 items-center justify-center overflow-hidden rounded-md bg-white/95 p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {o.logo && <img src={o.logo} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />}
@@ -374,7 +336,7 @@ export function Landing({ data }: { data: LandingData }) {
                 </div>
               </Link>
             ))}
-            <Link href="/organizaciones?orden=menos" className="flex min-h-[270px] w-[260px] shrink-0 flex-col items-center justify-center rounded-lg border border-dashed border-line-strong p-5 text-center text-sm text-fg-muted hover:text-fg md:w-[300px]">
+            <Link href="/organizaciones?orden=menos" className="flex min-h-[270px] w-[260px] shrink-0 snap-start flex-col items-center justify-center rounded-lg border border-dashed border-line-strong p-5 text-center text-sm text-fg-muted hover:text-fg md:w-[300px]">
               Ver las {nf.format(data.lesserCount)} organizaciones <ArrowRight className="mt-2 size-5" />
             </Link>
           </div>
@@ -482,12 +444,31 @@ function Audience({ icon: Icon, who, text }: { icon: typeof Map; who: string; te
 }
 
 function MiniDots({ pads }: { pads: LandingData["pads"] }) {
-  const W = 360, H = 150;
+  const W = 360, H = 150, TOP = 78, SPAN = 140;
+  const x = (lng: number) => ((lng + 180) / 360) * W;
+  const y = (lat: number) => ((TOP - lat) / SPAN) * H;
+  const [land, setLand] = useState<string | null>(null);
+  // Contornos de Natural Earth (dominio público), proyección equirectangular
+  useEffect(() => {
+    let alive = true;
+    Promise.all([import("world-atlas/land-110m.json"), import("topojson-client")]).then(([m, tj]) => {
+      const topo = (m.default ?? m) as unknown as Parameters<typeof tj.feature>[0];
+      const fc = tj.feature(topo, (topo as unknown as { objects: { land: Parameters<typeof tj.feature>[1] } }).objects.land) as unknown as GeoJSON.FeatureCollection;
+      let d = "";
+      for (const f of fc.features) {
+        const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.type === "MultiPolygon" ? f.geometry.coordinates : [];
+        for (const poly of polys) for (const ring of poly) d += "M" + ring.map(([lo, la]) => `${x(lo).toFixed(1)},${y(la).toFixed(1)}`).join("L") + "Z";
+      }
+      if (alive) setLand(d);
+    });
+    return () => { alive = false; };
+  }, []);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 w-full rounded-md border border-line bg-bg/60" aria-hidden>
+      {land && <path d={land} fill="var(--color-surface-3)" stroke="var(--color-line-strong)" strokeWidth={0.4} />}
       {pads.map((p, i) => (
-        <circle key={i} cx={((p.lng + 180) / 360) * W} cy={((78 - p.lat) / 140) * H} r={p.upcoming ? 2.6 : 1.5}
-          fill={p.upcoming ? "var(--color-accent)" : "var(--color-fg-dim)"} opacity={p.upcoming ? 0.95 : 0.5} />
+        <circle key={i} cx={x(p.lng)} cy={y(p.lat)} r={p.upcoming ? 2.6 : 1.5}
+          fill={p.upcoming ? "var(--color-accent)" : "var(--color-fg-dim)"} opacity={p.upcoming ? 0.95 : 0.6} />
       ))}
     </svg>
   );

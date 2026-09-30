@@ -269,7 +269,7 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
       </div>
 
       {/* Panel lateral / hoja inferior */}
-      <aside className="max-h-[45%] shrink-0 overflow-y-auto border-t border-line bg-surface md:max-h-none md:w-[360px] md:border-t-0 md:border-l">
+      <aside className="max-h-[45%] shrink-0 overflow-y-auto overscroll-contain border-t border-line bg-surface md:max-h-none md:w-[360px] md:border-t-0 md:border-l">
         {pad ? (
           <div>
             <div className="flex items-start justify-between gap-3 border-b border-line p-4">

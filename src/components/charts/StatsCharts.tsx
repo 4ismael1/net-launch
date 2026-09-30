@@ -8,7 +8,7 @@ import { EChart, CHART, baseOption } from "./EChart";
 const axis = {
   axisLine: { lineStyle: { color: CHART.grid } },
   axisTick: { show: false },
-  axisLabel: { color: CHART.dim, fontSize: 10.5 },
+  axisLabel: { color: CHART.dim, fontSize: 10.5, fontFamily: CHART.font },
   splitLine: { lineStyle: { color: CHART.grid, type: "dashed" as const } },
 };
 const nf = new Intl.NumberFormat("es");
@@ -45,7 +45,7 @@ export function HBar({ rows, hrefBase, label, color = CHART.accent }: { rows: { 
     grid: { left: 8, right: 44, top: 4, bottom: 4, containLabel: true },
     tooltip: { trigger: "item", formatter: (p: { dataIndex: number; value: number }) => `${top[p.dataIndex].name}: <b>${nf.format(p.value)}</b>` },
     xAxis: { type: "value", show: false },
-    yAxis: { type: "category", data: top.map((r) => short(r.name)), ...axis, axisLine: { show: false }, axisLabel: { color: CHART.text, fontSize: 11 } },
+    yAxis: { type: "category", data: top.map((r) => short(r.name)), ...axis, axisLine: { show: false }, axisLabel: { color: CHART.text, fontSize: 12, fontFamily: CHART.sans, width: 190, overflow: "truncate" } },
     series: [{
       type: "bar", data: top.map((r) => r.n), barMaxWidth: 14, itemStyle: { color, borderRadius: [0, 3, 3, 0] },
       label: { show: true, position: "right", color: CHART.text, fontSize: 10.5, fontFamily: CHART.font },
