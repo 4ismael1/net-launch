@@ -7,6 +7,9 @@ import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { Flag } from "@/components/ui/Flag";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { countryName } from "@/lib/format";
+import { Suspense } from "react";
+import { getStationsGP } from "@/lib/orbit";
+import { OrbitViewer } from "@/components/orbit/OrbitViewer";
 
 export const metadata: Metadata = { title: "En el espacio" };
 
@@ -15,7 +18,7 @@ export default async function Page() {
   return (
     <div className="mx-auto max-w-[1400px]">
       <PageHeader eyebrow="Explorar" title="En el espacio ahora"
-        description="Personas en órbita y estaciones espaciales activas según Launch Library 2. La posición calculada de las estaciones llegará con el módulo orbital." />
+        description="Personas en órbita y estaciones espaciales activas según Launch Library 2, con la posición calculada de la ISS y Tiangong." />
       {!data ? (
         <Card><Empty>Los datos se cargarán en la próxima sincronización.</Empty></Card>
       ) : (
@@ -26,6 +29,10 @@ export default async function Page() {
             <Kpi label="Países representados" value={new Set(data.astronauts.flatMap((a) => a.nationality)).size} />
             <Kpi label="Actualizado" value={<LocalTime date={new Date(data.at)} mode="relative" className="text-lg" />} />
           </div>
+
+          <Suspense fallback={<div className="h-[420px] animate-pulse rounded-lg border border-line bg-surface" />}>
+            <StationsOrbit />
+          </Suspense>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {data.stations.map((s) => {
@@ -93,5 +100,16 @@ export default async function Page() {
         </div>
       )}
     </div>
+  );
+}
+
+async function StationsOrbit() {
+  const gp = await getStationsGP();
+  if (!gp.length) return null;
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader title="Estaciones ahora" meta="ISS · Tiangong" />
+      <OrbitViewer objects={gp} height={420} />
+    </Card>
   );
 }

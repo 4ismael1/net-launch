@@ -1,10 +1,13 @@
+import { Suspense } from "react";
 import { Sidebar, MobileNav } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex min-h-dvh">
-      <Sidebar />
+      <Suspense fallback={<div className="sticky top-0 hidden h-dvh w-[232px] shrink-0 border-r border-line md:block" />}>
+        <Sidebar />
+      </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
         <main className="flex-1 px-4 pt-5 pb-24 md:px-6 md:pb-10">{children}</main>
@@ -13,7 +16,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           Proyecto académico; la información oficial pertenece a cada organización.
         </footer>
       </div>
-      <MobileNav />
+      <Suspense fallback={null}>
+        <MobileNav />
+      </Suspense>
     </div>
   );
 }

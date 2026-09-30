@@ -1,10 +1,10 @@
 # PROGRESO
 
 ## Estado actual
-- **Hecho:** F1 (datos + sync real en GitHub Actions, repo privado 4ismael1/net-launch), F2 (diseño + layout + panel), F3 (mapa), F4 (misión), F5 (explorador + Ctrl+K), F6 parcial (organizaciones, bases, vehículos + traducción Gemini).
-- **Siguiente paso exacto:** F6 resto → añadir al sync los endpoints LL2 `/events/upcoming/`, `/astronauts/?in_space=true` y `/space_stations/?status=1`, y crear las páginas `/eventos` y `/en-el-espacio`. Luego F7 (estadísticas con ECharts).
-- Paleta cambiada a grafito cálido (el usuario rechaza el azul "de IA").
-- Traducción: `gemini-flash-lite-latest`, máx. 6 peticiones/ejecución, textos únicos, invalidación si cambia el original.
+- **Hecho:** F1–F9. Datos + sync (GitHub Actions), diseño/layout, panel, mapa, misión, explorador + Ctrl+K, organizaciones/bases/vehículos, eventos + en el espacio (instantáneas LL2 cada 3 h), estadísticas (ECharts + HHI), clima (Open-Meteo), órbitas (CelesTrak + SGP4 + visor Three.js propio).
+- **Siguiente paso exacto:** verificar que `next build` pasa → F10 landing 3D con scroll (reutilizar el globo de `OrbitViewer`: continentes Natural Earth, sin texturas descargadas) → F11 (metodología, noticias SNAPI, deploy en Vercel, PostHog/Sentry, QA responsive/a11y).
+- Paleta: grafito cálido, sin azul/morado. Éxito = gris `#9c988e` y fallo = rojo `#ff4d4f` en las gráficas (validado para daltonismo).
+- Traducción: `gemini-flash-lite-latest`, máx. 6 peticiones/ejecución.
 
 ## Hecho en F1
 - Next.js 16.3 + TS + Tailwind v4 (en la raíz). Ojo: leer `node_modules/next/dist/docs/` antes de usar APIs de Next (AGENTS.md).

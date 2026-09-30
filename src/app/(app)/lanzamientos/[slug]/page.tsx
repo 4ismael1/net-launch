@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { CalendarPlus, ChevronRight, ExternalLink, MapPin, Play, ShieldCheck, Info } from "lucide-react";
+import { CalendarPlus, ChevronRight, ExternalLink, MapPin, Play, ShieldCheck, Info, Orbit } from "lucide-react";
 import { getLaunchDetail, getPrerenderSlugs, type LaunchDetail } from "@/lib/data/launch-detail";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Flag } from "@/components/ui/Flag";
@@ -11,6 +11,8 @@ import { Countdown } from "@/components/launch/Countdown";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { MiniMap } from "@/components/map/MiniMap";
 import { WeatherCard } from "@/components/weather/WeatherCard";
+import { getLaunchNews } from "@/lib/news";
+import { NewsRows } from "@/components/news/NewsList";
 import { countryName, netLabel, padName, statusInfo } from "@/lib/format";
 
 export async function generateStaticParams() {
@@ -136,6 +138,7 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
           <Streams d={d} />
           {d.timeline.length > 0 && <Timeline d={d} />}
           {d.updates.length > 0 && <Updates d={d} />}
+          <Suspense fallback={null}><RelatedNews id={l.id} /></Suspense>
         </div>
 
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
@@ -189,6 +192,18 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
                 )}
                 {d.weatherConcerns && <p className="text-fg-muted"><span className="label mr-2">Factores</span>{d.weatherConcerns}</p>}
                 <p className="flex gap-1.5 text-[11px] text-fg-dim"><Info className="mt-0.5 size-3 shrink-0" />Pronóstico publicado por el equipo meteorológico de la misión (vía Launch Library 2). No es una predicción de esta plataforma.</p>
+              </div>
+            </Card>
+          )}
+
+          {l.launchDesignator && ["Success", "Partial Failure"].includes(l.statusAbbrev ?? "") && (
+            <Card>
+              <CardHeader title="Objetos en órbita" meta={`COSPAR ${l.launchDesignator}`} />
+              <div className="p-4 text-sm">
+                <p className="text-fg-muted">Consulta las cargas útiles y objetos catalogados públicamente tras este lanzamiento, con su órbita calculada.</p>
+                <Link href={`/orbita/${l.slug}`} className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md border border-line-strong px-3.5 text-sm hover:bg-surface-2">
+                  <Orbit className="size-4" /> Seguimiento orbital
+                </Link>
               </div>
             </Card>
           )}
@@ -332,6 +347,17 @@ function Updates({ d }: { d: LaunchDetail }) {
           </li>
         ))}
       </ul>
+    </Card>
+  );
+}
+
+async function RelatedNews({ id }: { id: string }) {
+  const items = await getLaunchNews(id);
+  if (!items?.length) return null;
+  return (
+    <Card>
+      <CardHeader title="Noticias relacionadas" meta="Spaceflight News API" />
+      <NewsRows items={items} />
     </Card>
   );
 }
