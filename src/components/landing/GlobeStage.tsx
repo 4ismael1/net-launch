@@ -137,7 +137,7 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
     resize();
 
     // Bucle: interpola hacia el objetivo (o gira libremente)
-    let raf = 0, idle = -0.6, shift = state.current.shiftX, dist = 4.2, t0 = performance.now();
+    let raf = 0, idle = -0.6, shift = state.current.shiftX, dist = 4.2, yOff = mobile ? 0.9 : 0, t0 = performance.now();
     const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
     const angLerp = (a: number, b: number, k: number) => a + (Math.atan2(Math.sin(b - a), Math.cos(b - a))) * k;
     const loop = (now: number) => {
@@ -162,7 +162,7 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
       if (t) {
         spin.rotation.y = angLerp(spin.rotation.y, -Math.PI / 2 - (t.lng * Math.PI) / 180, 2.2 * dt);
         tilt.rotation.x = lerp(tilt.rotation.x, (t.lat * Math.PI) / 180, 2.2 * dt);
-        dist = lerp(dist, t.dist, 2 * dt);
+        dist = lerp(dist, mobile ? Math.max(t.dist, 3.4) : t.dist, 2 * dt);
         idle = spin.rotation.y;
       } else {
         if (!reduce) idle += dt * 0.06;
@@ -171,8 +171,11 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
         dist = lerp(dist, mobile ? 5.2 : 4.2, 1.5 * dt);
       }
       shift = lerp(shift, mobile ? 0 : (t?.shiftX ?? state.current.shiftX), 2.5 * dt);
-      camera.position.set(-shift * dist * 0.35, mobile ? 0.9 : 0, dist);
-      camera.lookAt(-shift * dist * 0.35, mobile ? 0.9 : 0, 0);
+      // Móvil: en el hero el globo queda bajo el texto (y +0.9); en el recorrido la base resaltada
+      // sube a la mitad superior de la pantalla, por encima de la tarjeta inferior (y −0.3).
+      yOff = lerp(yOff, mobile ? (t ? -0.3 : 0.9) : 0, 2.5 * dt);
+      camera.position.set(-shift * dist * 0.35, yOff, dist);
+      camera.lookAt(-shift * dist * 0.35, yOff, 0);
       hotMat.size = 0.075 * (1 + 0.18 * Math.sin(now / 420));
       renderer.render(scene, camera);
       raf = requestAnimationFrame(loop);
