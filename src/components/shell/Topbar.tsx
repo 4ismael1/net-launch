@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { Search } from "lucide-react";
 import { getLastSync, getNextLaunch } from "@/lib/data/launches";
 import { Countdown } from "@/components/launch/Countdown";
 import { StatusDot } from "@/components/launch/StatusBadge";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { Logo } from "./Logo";
+import { SearchPalette } from "./SearchPalette";
 
 async function NextChip() {
   const next = await getNextLaunch();
@@ -47,15 +47,7 @@ export function Topbar() {
         <Suspense fallback={null}>
           <SyncInfo />
         </Suspense>
-        <button
-          type="button"
-          data-search-trigger
-          className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[13px] text-fg-dim transition-colors hover:border-line-strong hover:text-fg-muted sm:w-64"
-        >
-          <Search className="size-4" strokeWidth={1.75} />
-          <span className="hidden sm:inline">Buscar misión, cohete, base…</span>
-          <kbd className="ml-auto hidden rounded-sm border border-line px-1.5 font-mono text-[10px] sm:inline">Ctrl K</kbd>
-        </button>
+        <SearchPalette />
       </div>
     </header>
   );
