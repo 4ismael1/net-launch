@@ -63,18 +63,22 @@ export function Landing({ data }: { data: LandingData }) {
       );
       gsap.to("[data-progress]", { scaleY: 1, ease: "none", scrollTrigger: { trigger: root.current, start: "top top", end: "bottom bottom", scrub: true } });
 
-      // 02 · dispersión → convergencia: se reproduce UNA vez al entrar, sin depender de dónde se suelte el scroll
+      // 02 · dispersión → convergencia. Regla: NADA se anima mientras el usuario se desplaza; solo cuando la sección
+      // está quieta en pantalla (scrollend). Si pasa de largo, la sección queda directamente en su estado final.
       const frags = gsap.utils.toArray<HTMLElement>("[data-frag]");
+      let scatter: gsap.core.Timeline | null = null;
       if (reduce) {
         gsap.set(frags, { opacity: 0 });
         gsap.set("[data-hub]", { opacity: 1, scale: 1 });
       } else {
         gsap.set("[data-hub]", { opacity: 0, scale: 0.8 });
+        gsap.set("[data-pillars]", { opacity: 0 });
         gsap.set(frags, { opacity: 0, scale: 0.8 });
-        gsap.timeline({ scrollTrigger: { trigger: "[data-scatter]", start: "top 60%", once: true } })
+        scatter = gsap.timeline({ paused: true })
           .to(frags, { opacity: 1, scale: 1, stagger: 0.04, duration: 0.5, ease: "power2.out" })
-          .to(frags, { left: "50%", top: "55%", xPercent: -50, yPercent: -50, scale: 0.3, opacity: 0, stagger: 0.02, duration: 0.8, ease: "power3.in" }, "+=0.9")
-          .to("[data-hub]", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, "-=0.35");
+          .to(frags, { left: "50%", top: "50%", xPercent: -50, yPercent: -50, scale: 0.3, opacity: 0, stagger: 0.02, duration: 0.8, ease: "power3.in" }, "+=0.9")
+          .to("[data-hub]", { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, "-=0.35")
+          .to("[data-pillars]", { opacity: 1, duration: 0.5, ease: "power2.out" }, "-=0.1");
       }
       ScrollTrigger.create({
         trigger: "#problema", start: "top 60%", end: "bottom top",
@@ -99,24 +103,39 @@ export function Landing({ data }: { data: LandingData }) {
         onLeaveBack: () => { lastIdx = -1; globe.current?.setTarget(null); },
       });
 
-      // Cifras que ruedan y apariciones: en cuanto asoman en pantalla, una sola vez
-      gsap.utils.toArray<HTMLElement>("[data-count]").forEach((el) => {
+      // Cifras de "Los datos": ruedan cuando la sección está quieta (el contenido no se desplaza, solo cambia el número)
+      const counters = gsap.utils.toArray<HTMLElement>("[data-count]").map((el) => {
         const to = Number(el.dataset.count);
-        if (reduce) { el.textContent = to.toLocaleString("es"); return; }
+        if (reduce) { el.textContent = to.toLocaleString("es"); return null; }
         const o = { v: 0 };
-        gsap.to(o, {
-          v: to, duration: 1.4, ease: "power2.out", scrollTrigger: { trigger: el, start: "top 95%", once: true },
-          onUpdate: () => { el.textContent = Math.round(o.v).toLocaleString("es"); },
-        });
+        return gsap.to(o, { v: to, duration: 1.2, ease: "power2.out", paused: true, onUpdate: () => { el.textContent = Math.round(o.v).toLocaleString("es"); } });
       });
-      if (!reduce) {
-        gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((el) =>
-          gsap.from(el, { opacity: 0, y: 24, duration: 0.7, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 94%", once: true } }),
-        );
-        gsap.utils.toArray<HTMLElement>("[data-stagger]").forEach((el) =>
-          gsap.from(el.children, { opacity: 0, y: 20, duration: 0.55, stagger: 0.05, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 94%", once: true } }),
-        );
-      }
+
+      // Sección en la que el usuario se ha detenido
+      const settled = () => {
+        const mid = window.innerHeight * 0.5;
+        for (const [id] of CHAPTERS) {
+          const r = document.getElementById(id)?.getBoundingClientRect();
+          if (r && r.top <= mid && r.bottom > mid) return id;
+        }
+        return null;
+      };
+      const onSettle = () => {
+        const id = settled();
+        if (scatter) {
+          if (id === "problema" && scatter.progress() === 0) scatter.play();
+          else if (id !== "problema" && scatter.progress() > 0 && scatter.progress() < 1) scatter.progress(1); // pasó de largo
+          else if (id !== "problema" && scatter.progress() === 0 && id && CHAPTERS.findIndex(([c]) => c === id) > 1) scatter.progress(1);
+        }
+        if (id === "datos") counters.forEach((t) => { if (t && t.progress() === 0) t.play(); });
+      };
+      let settleTimer: ReturnType<typeof setTimeout> | undefined;
+      const onScrollSettle = () => { clearTimeout(settleTimer); settleTimer = setTimeout(onSettle, 140); };
+      const hasScrollEnd = "onscrollend" in window;
+      if (hasScrollEnd) window.addEventListener("scrollend", onSettle);
+      else window.addEventListener("scroll", onScrollSettle, { passive: true });
+      requestAnimationFrame(onSettle);
+
       // ── Navegación por secciones: cada gesto salta suavemente al siguiente punto; nunca se queda a medias ──
       let anchors: number[] = [];
       const computeAnchors = () => {
@@ -204,6 +223,9 @@ export function Landing({ data }: { data: LandingData }) {
         window.removeEventListener("touchend", onTouchEnd);
         window.removeEventListener("keydown", onKey);
         ScrollTrigger.removeEventListener("refresh", computeAnchors);
+        window.removeEventListener("scrollend", onSettle);
+        window.removeEventListener("scroll", onScrollSettle);
+        clearTimeout(settleTimer);
         clearTimeout(quietTimer);
       };
     }, root);
@@ -282,38 +304,43 @@ export function Landing({ data }: { data: LandingData }) {
         </div>
       </section>
 
-      {/* 02 · EL PROBLEMA */}
+      {/* 02 · EL PROBLEMA — una sola pantalla: título, convergencia en el panel y, después, las tres cifras */}
       <section id="problema" className="relative z-10">
-        <div data-scatter className="relative h-dvh min-h-[640px] overflow-hidden">
-          <div data-scatter-title className="absolute inset-x-0 top-[15%] px-5 text-center">
+        <div data-scatter className="relative flex h-dvh min-h-[700px] flex-col overflow-hidden px-5 pt-24 pb-6 md:px-12">
+          <div className="text-center">
             <Eyebrow n="02" text="El problema" center />
-            <h2 className="mx-auto max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">La información aeroespacial está dispersa.</h2>
-            <p className="mx-auto mt-3 max-w-xl text-fg-muted">Decenas de agencias, empresas, webs y redes, cada una con su parte de la historia.</p>
+            <h2 className="mx-auto max-w-3xl text-[clamp(1.7rem,min(4vw,6vh),3rem)] leading-tight font-semibold tracking-tight">La información aeroespacial está dispersa.</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-fg-muted md:text-base">Decenas de agencias, empresas, webs y redes, cada una con su parte de la historia.</p>
           </div>
-          {fragments.map((f, i) => (
-            <span key={f + i} data-frag
-              className="absolute rounded-md border border-line bg-surface/85 px-3 py-1.5 font-mono text-xs whitespace-nowrap text-fg-muted backdrop-blur"
-              style={{ left: `${5 + seeded(i) * 82}%`, top: `${48 + seeded(i + 50) * 44}%` }}>
-              {f}
-            </span>
-          ))}
-          <div data-hub className="absolute top-1/2 left-1/2 w-[min(88vw,440px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-accent/40 bg-surface/95 p-5 shadow-[0_0_80px_-20px_rgba(255,91,31,.5)] backdrop-blur">
-            <div className="mb-3 flex items-center gap-2"><Logo compact /><span className="label !text-accent">Un único lugar</span></div>
-            <p className="text-lg font-medium">Próximos lanzamientos, mapa, organizaciones, histórico, clima, transmisiones y órbitas.</p>
-            <p className="mt-2 text-sm text-fg-muted">Sincronizado automáticamente desde fuentes públicas.</p>
-          </div>
-        </div>
 
-        <div className="mx-auto grid max-w-6xl gap-px px-5 pb-24 md:grid-cols-3 md:px-12" data-stagger>
-          <Pillar k="Dispersa" v={nf.format(data.activeOperators)} unit="operadores activos" text="publican su actividad cada uno en su propio canal, con formatos y horarios distintos." />
-          <Pillar k="Concentrada" v={c ? pct(c.top3) : "—"} unit="en solo 3 operadores" text={`de los lanzamientos de los últimos 12 meses${data.topOperator && c ? `; ${data.topOperator} lidera con ${pct(c.top1)}` : ""}.`} />
-          <Pillar k="Invisible" v={nf.format(data.lesserCount)} unit="organizaciones activas" text="suman menos de 25 lanzamientos en toda su historia y casi no aparecen en los medios." />
+          {/* Zona central: los fragmentos convergen en el panel */}
+          <div className="relative min-h-[170px] flex-1">
+            {fragments.map((f, i) => (
+              <span key={f + i} data-frag
+                className="absolute rounded-md border border-line bg-surface/85 px-3 py-1.5 font-mono text-xs whitespace-nowrap text-fg-muted backdrop-blur"
+                style={{ left: `${2 + seeded(i) * 84}%`, top: `${8 + seeded(i + 50) * 80}%` }}>
+                {f}
+              </span>
+            ))}
+            <div data-hub className="absolute top-1/2 left-1/2 w-[min(88vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-accent/40 bg-surface/95 p-4 shadow-[0_0_80px_-20px_rgba(255,91,31,.5)] backdrop-blur md:p-5">
+              <div className="mb-2 flex items-center gap-2"><Logo compact /><span className="label !text-accent">Un único lugar</span></div>
+              <p className="font-medium md:text-lg">Próximos lanzamientos, mapa, organizaciones, histórico, clima, transmisiones y órbitas.</p>
+              <p className="mt-1.5 text-xs text-fg-muted md:text-sm">Sincronizado automáticamente desde fuentes públicas.</p>
+            </div>
+          </div>
+
+          {/* Las tres cifras aparecen tras la convergencia, en la misma pantalla */}
+          <div data-pillars className="mx-auto grid w-full max-w-6xl grid-cols-3 overflow-hidden rounded-lg border border-line bg-bg/75 backdrop-blur">
+            <Pillar k="Dispersa" v={nf.format(data.activeOperators)} unit="operadores activos" text="publican su actividad cada uno en su propio canal, con formatos y horarios distintos." />
+            <Pillar k="Concentrada" v={c ? pct(c.top3) : "—"} unit="en solo 3 operadores" text={`de los lanzamientos de los últimos 12 meses${data.topOperator && c ? `; ${data.topOperator} lidera con ${pct(c.top1)}` : ""}.`} />
+            <Pillar k="Invisible" v={nf.format(data.lesserCount)} unit="organizaciones activas" text="suman menos de 25 lanzamientos en toda su historia y casi no aparecen en los medios." />
+          </div>
         </div>
       </section>
 
       {/* 03 · EL PLANETA */}
       <section id="planeta" className="relative z-10">
-        <div className="px-5 pt-10 md:px-12 lg:px-20" data-reveal>
+        <div className="px-5 pt-10 md:px-12 lg:px-20">
           <Eyebrow n="03" text="El planeta" />
           <h2 className="max-w-xl text-3xl font-semibold tracking-tight md:text-5xl">Un recorrido por las bases que lanzan hoy.</h2>
         </div>
@@ -353,11 +380,11 @@ export function Landing({ data }: { data: LandingData }) {
       {/* 04 · LA PLATAFORMA */}
       <section id="plataforma" className="relative z-10 bg-bg/80 px-5 py-28 backdrop-blur-sm md:px-12 lg:px-20">
         <div className="mx-auto max-w-6xl">
-          <div data-reveal>
+          <div>
             <Eyebrow n="04" text="La plataforma" />
             <h2 className="max-w-2xl text-3xl font-semibold tracking-tight md:text-5xl">Consultar, explorar e investigar, sin saltar de sitio en sitio.</h2>
           </div>
-          <div className="mt-12 grid grid-cols-1 gap-3 md:grid-cols-6" data-stagger>
+          <div className="mt-12 grid grid-cols-1 gap-3 md:grid-cols-6">
             <Feature href="/panel" icon={Rocket} title="Panel en vivo" text="Próximo lanzamiento con cuenta regresiva, métricas globales y resultados recientes." className="md:col-span-3">
               <ul className="mt-4 divide-y divide-line rounded-md border border-line bg-bg/60">
                 {data.upcoming.slice(0, 3).map((l) => (
@@ -390,7 +417,7 @@ export function Landing({ data }: { data: LandingData }) {
             <Feature href="/organizaciones" icon={Building2} title="Organizaciones" text="Agencias y empresas de todo el mundo, sin privilegiar a las famosas." className="md:col-span-2" />
           </div>
 
-          <div className="mt-16 grid gap-3 md:grid-cols-3" data-stagger>
+          <div className="mt-16 grid gap-3 md:grid-cols-3">
             <Audience icon={GraduationCap} who="Estudiantes" text="Encuentra rápido cuándo, dónde y quién lanza, con un glosario de estados." />
             <Audience icon={Microscope} who="Investigadores" text="Histórico, filtros compartibles por URL, estadísticas y fuentes citadas." />
             <Audience icon={Telescope} who="Aficionados" text="Cuenta regresiva, transmisiones, calendario (.ics) y el mapa del planeta." />
@@ -401,7 +428,7 @@ export function Landing({ data }: { data: LandingData }) {
       {/* 05 · MENOS CONOCIDOS (galería horizontal) */}
       <section id="visibles" className="relative z-10 bg-bg">
         <div className="flex flex-col justify-center py-24">
-          <div className="flex flex-wrap items-end justify-between gap-4 px-5 md:px-12 lg:px-20" data-reveal>
+          <div className="flex flex-wrap items-end justify-between gap-4 px-5 md:px-12 lg:px-20">
             <div>
               <Eyebrow n="05" text="Menos conocidos" />
               <h2 className="max-w-2xl text-3xl font-semibold tracking-tight md:text-5xl">También lanzan. Casi nadie lo cuenta.</h2>
@@ -436,12 +463,12 @@ export function Landing({ data }: { data: LandingData }) {
 
       {/* 06 · LOS DATOS */}
       <section id="datos" className="relative z-10 flex min-h-dvh flex-col justify-center px-5 py-24 md:px-12 lg:px-20">
-        <div data-reveal className="max-w-3xl">
+        <div className="max-w-3xl">
           <Eyebrow n="06" text="Los datos" />
           <h2 className="text-3xl font-semibold tracking-tight md:text-5xl">Datos reales, fuentes abiertas, nada inventado.</h2>
           <p className="mt-4 max-w-2xl text-fg-muted">Si una fuente no ofrece un dato, la plataforma no lo muestra. Sin telemetría simulada, sin predicciones de cancelación.</p>
         </div>
-        <div data-reveal className="mt-10 grid max-w-5xl grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
+        <div className="mt-10 grid max-w-5xl grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
           {([
             ["Programados", data.kpis.upcoming],
             ["Operadores activos", data.activeOperators],
@@ -454,7 +481,7 @@ export function Landing({ data }: { data: LandingData }) {
             </div>
           ))}
         </div>
-        <div data-stagger className="mt-8 flex max-w-5xl flex-wrap gap-2">
+        <div className="mt-8 flex max-w-5xl flex-wrap gap-2">
           {["Launch Library 2", "OpenStreetMap", "Open-Meteo", "CelesTrak", "Spaceflight News API", "Natural Earth", "Gemini (traducción)"].map((s) => (
             <span key={s} className="rounded-md border border-line bg-surface/80 px-3 py-1.5 font-mono text-xs text-fg-muted backdrop-blur">{s}</span>
           ))}
@@ -463,7 +490,7 @@ export function Landing({ data }: { data: LandingData }) {
 
       {/* Cierre */}
       <section data-final className="relative z-10 flex min-h-[70dvh] flex-col items-center justify-center px-5 text-center">
-        <div data-reveal>
+        <div>
           <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight md:text-5xl">Deja de buscar en diez sitios distintos.</h2>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link href="/panel" className="inline-flex h-12 items-center gap-2 rounded-md bg-accent px-6 font-medium text-black hover:opacity-90">Entrar a la plataforma <ArrowRight className="size-4" /></Link>
@@ -503,11 +530,11 @@ function Eyebrow({ n, text, center }: { n: string; text: string; center?: boolea
 
 function Pillar({ k, v, unit, text }: { k: string; v: string; unit: string; text: string }) {
   return (
-    <div className="border-t border-line-strong bg-bg/70 p-6 backdrop-blur md:border-t-0 md:border-l md:first:border-l-0">
-      <p className="label mb-3">{k}</p>
-      <p className="num text-4xl">{v}</p>
-      <p className="mt-1 text-sm text-fg">{unit}</p>
-      <p className="mt-2 text-sm text-fg-muted">{text}</p>
+    <div className="border-l border-line p-3 first:border-l-0 md:p-5">
+      <p className="label mb-1.5 md:mb-2">{k}</p>
+      <p className="num text-2xl md:text-4xl">{v}</p>
+      <p className="mt-0.5 text-xs text-fg md:mt-1 md:text-sm">{unit}</p>
+      <p className="mt-1.5 hidden text-sm text-fg-muted md:block">{text}</p>
     </div>
   );
 }
