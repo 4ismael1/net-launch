@@ -477,12 +477,13 @@ export function Landing({ data }: { data: LandingData }) {
           <div className="md:col-span-2">
             <Logo />
             <p className="mt-3 max-w-sm text-xs leading-relaxed text-fg-dim">
-              Proyecto académico: centralización de información aeroespacial dispersa mediante APIs públicas y herramientas WebGIS.
-              La información oficial pertenece a cada organización.
+              Proyecto de investigación de <span className="text-fg-muted">Ana Isabel Ruiz Gómez</span> y <span className="text-fg-muted">Yeslei Vannesa Mora Gómez</span>,
+              Programa de Ingeniería Aeronáutica · Universidad Pontificia Bolivariana.
             </p>
+            <p className="mt-2 text-[11px] text-fg-dim">Desarrollo de software: Ing. Ismael Paulino.</p>
           </div>
           <FooterCol title="Plataforma" links={[["Panel", "/panel"], ["Mapa", "/mapa"], ["Lanzamientos", "/lanzamientos"], ["Estadísticas", "/estadisticas"]]} />
-          <FooterCol title="Información" links={[["Metodología", "/metodologia"], ["Organizaciones", "/organizaciones"], ["Bases", "/bases"], ["Noticias", "/noticias"]]} />
+          <FooterCol title="Información" links={[["Acerca del proyecto", "/acerca"], ["Metodología", "/metodologia"], ["Organizaciones", "/organizaciones"], ["Bases", "/bases"], ["Noticias", "/noticias"]]} />
         </div>
         <p className="mx-auto mt-8 max-w-6xl text-[11px] text-fg-dim">
           Datos: The Space Devs (Launch Library 2, Spaceflight News API) · Cartografía © OpenStreetMap contributors · Clima: Open-Meteo · Órbitas: CelesTrak · Continentes: Natural Earth.

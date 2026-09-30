@@ -14,8 +14,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <ViewTransition enter="vt-page-in" exit="vt-page-out" default="none">{children}</ViewTransition>
         </main>
         <footer data-app-footer className="hidden border-t border-line px-6 py-4 text-[11px] text-fg-dim md:block">
-          Datos: Launch Library 2 (The Space Devs) · Cartografía © OpenStreetMap · Clima: Open-Meteo · Órbitas: CelesTrak.
-          Proyecto académico; la información oficial pertenece a cada organización.
+          Proyecto de investigación de <a href="/acerca" className="text-fg-muted hover:text-fg">Ana Isabel Ruiz Gómez y Yeslei Vannesa Mora Gómez</a> · Ingeniería Aeronáutica, Universidad Pontificia Bolivariana.
+          <br />Datos: Launch Library 2 (The Space Devs) · Cartografía © OpenStreetMap · Clima: Open-Meteo · Órbitas: CelesTrak. La información oficial pertenece a cada organización.
+          <span className="text-fg-dim/70"> · Desarrollo de software: Ing. Ismael Paulino.</span>
         </footer>
       </div>
       <Suspense fallback={null}>

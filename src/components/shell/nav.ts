@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Map, Rocket, CalendarClock, Orbit, Satellite, Building2, MapPin, Layers, BarChart3, Newspaper, BookOpen,
+  LayoutDashboard, Map, Rocket, CalendarClock, Orbit, Satellite, GraduationCap, Building2, MapPin, Layers, BarChart3, Newspaper, BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -18,6 +18,7 @@ export const NAV: NavItem[] = [
   { href: "/estadisticas", label: "Estadísticas", icon: BarChart3, group: "datos" },
   { href: "/noticias", label: "Noticias", icon: Newspaper, group: "info" },
   { href: "/metodologia", label: "Metodología", icon: BookOpen, group: "info" },
+  { href: "/acerca", label: "Acerca del proyecto", icon: GraduationCap, group: "info" },
 ];
 
 export const GROUPS: Record<NavItem["group"], string> = { explorar: "Explorar", datos: "Datos", info: "Información" };
