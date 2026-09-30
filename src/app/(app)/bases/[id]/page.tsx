@@ -7,6 +7,7 @@ import { getLocation } from "@/lib/data/entities";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { Facts, LaunchListCard, YearBars } from "@/components/entity/shared";
 import { MiniMap } from "@/components/map/MiniMap";
+import { WeatherCard } from "@/components/weather/WeatherCard";
 import { Flag } from "@/components/ui/Flag";
 import { countryName, padName } from "@/lib/format";
 
@@ -61,6 +62,9 @@ async function Content({ params }: Pick<PageProps<"/bases/[id]">, "params">) {
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
           {firstPad?.lat != null && firstPad.lng != null && (
             <Card className="overflow-hidden"><CardHeader title="Ubicación" /><MiniMap lat={firstPad.lat} lng={firstPad.lng} label={loc.name} /></Card>
+          )}
+          {firstPad?.lat != null && firstPad.lng != null && (
+            <Suspense fallback={null}><WeatherCard lat={firstPad.lat} lng={firstPad.lng} place={loc.name} /></Suspense>
           )}
           <Card>
             <CardHeader title="Plataformas" meta={String(d.pads.length)} />

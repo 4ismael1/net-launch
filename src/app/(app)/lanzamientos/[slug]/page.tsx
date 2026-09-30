@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/launch/StatusBadge";
 import { Countdown } from "@/components/launch/Countdown";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { MiniMap } from "@/components/map/MiniMap";
+import { WeatherCard } from "@/components/weather/WeatherCard";
 import { countryName, netLabel, padName, statusInfo } from "@/lib/format";
 
 export async function generateStaticParams() {
@@ -164,6 +165,13 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
               <CardHeader title="Ubicación" meta={padName(d.pad.name) ?? undefined} />
               <MiniMap lat={d.pad.latitude} lng={d.pad.longitude} label={padName(d.pad.name) ?? "Plataforma"} />
             </Card>
+          )}
+
+          {d.pad?.latitude != null && d.pad.longitude != null && (
+            <Suspense fallback={null}>
+              <WeatherCard lat={d.pad.latitude} lng={d.pad.longitude} place={d.location?.name ?? padName(d.pad.name) ?? ""}
+                t0={["Go", "TBC", "TBD", "Hold"].includes(l.statusAbbrev ?? "") && ["SEC", "MIN", "HR"].includes(l.netPrecision ?? "") ? l.net?.toISOString() ?? null : null} />
+            </Suspense>
           )}
 
           {(l.probability != null || d.weatherConcerns) && (
