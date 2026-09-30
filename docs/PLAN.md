@@ -148,7 +148,7 @@ Reglas: se carga en diferido, versión ligera en móviles o GPU débil, estátic
 |---|---|---|
 | LL2 (otros endpoints) | Eventos (acoplamientos, EVAs), astronautas, estaciones espaciales, naves, expediciones → sección "En el espacio ahora" | No (mismo sync) |
 | Wikipedia REST (es) | Resúmenes en **español** de organizaciones, cohetes y bases (caché en BD) | No |
-| DeepL API Free | Traducción al español de las descripciones de misiones de LL2 (500k caracteres/mes, caché en BD, etiqueta "traducción automática") | Sí (pide tarjeta solo para verificar) |
+| **Gemini API** (Google AI Studio, modelo Flash gratuito) | Traducción al español de las descripciones de LL2 (caché en BD → se traduce una sola vez; etiqueta "traducción automática") | Sí (key gratis) |
 | NOAA SWPC | Clima espacial (índice Kp, fulguraciones) como contexto | No |
 | NASA APOD (api.nasa.gov) | Imagen astronómica del día en el panel | Sí (key gratis) |
 | CelesTrak + satellite.js | Posición **calculada** de la ISS y Tiangong en el mapa | No |

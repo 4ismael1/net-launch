@@ -15,3 +15,6 @@
 | D11 | Criterio general: con uso bajo, elegir la mejor opción gratis aunque requiera key | Indicación del usuario (2026-09-30) |
 | D12 | ECharts en lugar de Recharts | Visualizaciones más ricas |
 | D13 | PostHog + Sentry | Evidencia de usabilidad y estabilidad |
+| D14 | Gemini (tier gratis) para traducir en lugar de DeepL | Indicación del usuario |
+| D15 | Sync: `upcoming` y el incremental en mode=detailed (videos y enlaces); el histórico en mode=normal | Máximo dato por petición; normal pesa menos y basta para el histórico |
+| D16 | Presupuesto LL2 de 14 req/h en ventana deslizante guardada en la BD | Varias ejecuciones del cron no pueden superar el límite |

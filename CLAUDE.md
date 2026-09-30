@@ -26,3 +26,5 @@ Uso bajo (universitario): elegir siempre la **mejor** opción gratuita, aunque r
 ## Flujo de trabajo
 - Una fase por sesión de chat. Al terminar una tarea, actualizar `docs/PROGRESO.md` (hecho / siguiente paso exacto).
 - Respuestas breves; no repetir el plan en el chat.
+
+@AGENTS.md
