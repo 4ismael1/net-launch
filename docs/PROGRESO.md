@@ -27,7 +27,8 @@
 - 2026-09-30 — F2–F6: interfaz completa navegable con datos reales; traducciones Gemini funcionando (150 textos → 418 misiones).
 - 2026-10-01 — Nuevos módulos: Programas, Reutilización, Astronautas, Naves (catálogos LL2 por páginas con cursor y reserva de 6 peticiones/h para lo urgente),
   Población orbital (SATCAT semanal), Asteroides (JPL CAD), Más allá de la órbita (JPL Horizons cada 6 h, interpolado), Imagen del día (APOD traducida),
-  Esta noche (astronomy-engine + SGP4 en el navegador), Tráfico aéreo (OpenSky global cada ~100 s en caché remota + adsb.lol 5 s en la zona visible).
+  Esta noche (astronomy-engine + SGP4 en el navegador).
+  Tráfico aéreo: retirado por decisión del usuario (queda en el historial de git, commit 83b4f3c, por si se retoma).
   Textos en español: tabla `translations` (md5 → es) + resúmenes de Wikipedia ES. Corregidos: scroll bloqueado (Next conserva páginas ocultas → `HtmlFlag`),
   "Ver en el mapa", pausa de los globos (preferencia compartida `net-globe-paused`).
   Notas: con Cache Components las páginas visitadas quedan montadas y ocultas (React Activity): nada de selectores `:has()` globales ni estado inicializado solo en el montaje.

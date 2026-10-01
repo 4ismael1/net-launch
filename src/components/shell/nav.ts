@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Map, Rocket, CalendarClock, Orbit, Satellite, GraduationCap, Building2, MapPin, Layers, BarChart3, Newspaper, BookOpen,
-  Moon, Telescope, Radar, Trash2, Users, Box, Image as ImageIcon, Recycle, Flag, Plane,
+  Moon, Telescope, Radar, Trash2, Users, Box, Image as ImageIcon, Recycle, Flag,
   type LucideIcon,
 } from "lucide-react";
 
@@ -13,7 +13,6 @@ export const NAV: NavItem[] = [
   { href: "/eventos", label: "Eventos", icon: CalendarClock, group: "explorar" },
   { href: "/en-el-espacio", label: "En el espacio", icon: Orbit, group: "explorar" },
   { href: "/satelites", label: "Satélites", icon: Satellite, group: "explorar" },
-  { href: "/trafico-aereo", label: "Tráfico aéreo", icon: Plane, group: "explorar" },
   { href: "/organizaciones", label: "Organizaciones", icon: Building2, group: "datos" },
   { href: "/bases", label: "Bases", icon: MapPin, group: "datos" },
   { href: "/vehiculos", label: "Vehículos", icon: Layers, group: "datos" },
