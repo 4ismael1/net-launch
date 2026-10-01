@@ -199,15 +199,16 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
 
     // 2b) Instantáneas "En el espacio" y eventos (cada 3 h, 4 peticiones)
     const lastSnap = await getState<number>("snapshots_at", 0);
-    if (now - lastSnap > 3 * 3600_000 && client.remaining >= 4) {
-      const [evUp, evPrev, astro, stations] = [
+    if (now - lastSnap > 3 * 3600_000 && client.remaining >= 5) {
+      const [evUp, evPrev, astro, stations, expeditions] = [
         await client.get<Page<unknown>>("/events/upcoming/", { limit: 100 }),
         await client.get<Page<unknown>>("/events/previous/", { limit: 30 }),
         await client.get<Page<unknown>>("/astronauts/", { in_space: "true", limit: 100, mode: "normal" }),
         await client.get<Page<unknown>>("/space_stations/", { status: 1, limit: 20, mode: "detailed" }),
+        await client.get<Page<unknown>>("/expeditions/", { is_active: "true", limit: 20, mode: "detailed" }),
       ];
       await setState("snap_events", { upcoming: evUp.results, previous: evPrev.results, at: now });
-      await setState("snap_space", { astronauts: astro.results, stations: stations.results, at: now });
+      await setState("snap_space", { astronauts: astro.results, stations: stations.results, expeditions: expeditions.results, at: now });
       await setState("snapshots_at", now);
       say(`instantáneas: ${evUp.results.length}+${evPrev.results.length} eventos, ${astro.results.length} astronautas, ${stations.results.length} estaciones`);
     }

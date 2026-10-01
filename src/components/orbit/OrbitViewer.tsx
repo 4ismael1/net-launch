@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Maximize2, Minus, Pause, Play, Plus } from "lucide-react";
 import { orbitControls, orbitPath, screenScale } from "./earth";
+import { drawIcon, iconFor, type IconKind } from "./satIcons";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
 import { json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, type SatRec } from "@/lib/sgp4";
@@ -80,7 +81,7 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
     scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.015, 64, 48), new THREE.MeshBasicMaterial({ color: 0xff5b1f, transparent: true, opacity: 0.04, side: THREE.BackSide })));
 
     // Órbitas: una vuelta completa centrada en "ahora", como bucle cerrado; se recalculan cada segundo
-    const markers: THREE.Mesh[] = [];
+    const markers: THREE.Sprite[] = [];
     const lines: THREE.LineLoop[] = [];
     let maxR = 1.2;
     const periods = sats.map((s) => (1440 / s.o.MEAN_MOTION) * 60_000);
@@ -90,7 +91,8 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
       const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: s.color, transparent: true, opacity: 0.6 }));
       scene.add(line);
       lines.push(line);
-      const mk = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: s.color }));
+      // Icono con forma según el tipo de objeto (estación, satélite, etapa…), teñido con su color
+      const mk = new THREE.Sprite(new THREE.SpriteMaterial({ map: iconTexture(iconFor(/ISS|CSS|TIANHE|ZARYA|TIANGONG/i.test(s.o.OBJECT_NAME) ? "stations" : "", s.o.OBJECT_NAME)), color: s.color, depthTest: false, transparent: true }));
       scene.add(mk);
       markers.push(mk);
     }
@@ -119,7 +121,7 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
         const pv = propagate(s.rec, date);
         if (pv?.position && typeof pv.position !== "boolean") {
           markers[i].position.copy(eci(pv.position));
-          markers[i].scale.setScalar(screenScale(camera, markers[i].position, 0.009));
+          markers[i].scale.setScalar(screenScale(camera, markers[i].position, 0.05));
           if (t - lastLive > 1000) {
             const geo = eciToGeodetic(pv.position, g);
             liveNow.push({ name: s.o.OBJECT_NAME, lat: degreesLat(geo.latitude), lon: degreesLong(geo.longitude), alt: geo.height, color: s.color });
@@ -179,4 +181,19 @@ function CtlBtn({ children, label, onClick }: { children: React.ReactNode; label
     <button onClick={onClick} title={label} aria-label={label}
       className="flex size-8 items-center justify-center rounded-md border border-line bg-bg/85 text-fg-muted backdrop-blur hover:text-fg">{children}</button>
   );
+}
+
+/** Textura de icono (blanco sobre transparente) cacheada por tipo; el SpriteMaterial la tiñe. */
+const iconCache = new Map<IconKind, THREE.CanvasTexture>();
+function iconTexture(kind: IconKind) {
+  let t = iconCache.get(kind);
+  if (!t) {
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 128;
+    drawIcon(cv.getContext("2d")!, kind, 128);
+    t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    iconCache.set(kind, t);
+  }
+  return t;
 }

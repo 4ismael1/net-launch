@@ -41,11 +41,14 @@ export async function getEvents() {
 export type Astronaut = {
   id: number; name: string; agency: string | null; agencyAbbrev: string | null; agencyId: number | null; nationality: string[];
   imageUrl: string | null; timeInSpace: string | null; lastFlight: string | null; flights: number | null; spacewalks: number | null; wiki: string | null;
+  bio: string | null; age: number | null; firstFlight: string | null; evaTime: string | null; role: string | null; stationId: number | null;
 };
 export type Station = {
   id: number; name: string; orbit: string | null; founded: string | null; description: string | null; imageUrl: string | null;
   owners: { id: number; name: string }[]; crew: number | null; docked: number | null; expeditions: { name: string; start: string | null }[];
   mass: number | null; volume: number | null;
+  ports: { name: string; vehicle: string | null }[];
+  height: number | null; width: number | null;
 };
 
 export async function getInSpace() {
@@ -54,6 +57,11 @@ export async function getInSpace() {
   cacheLife({ stale: 300, revalidate: 1800, expire: 7200 });
   const { space } = await snaps();
   if (!space) return null;
+  // Tripulación por estación (expediciones activas): rol y estación de cada persona
+  const crewInfo = new Map<number, { role: string | null; stationId: number | null }>();
+  for (const e of space.expeditions ?? []) {
+    for (const m of e.crew ?? []) if (m.astronaut?.id) crewInfo.set(m.astronaut.id, { role: m.role?.role ?? null, stationId: e.spacestation?.id ?? null });
+  }
   const astronauts: Astronaut[] = (space.astronauts ?? []).map((a: any) => ({
     id: a.id as number,
     name: a.name as string,
@@ -67,6 +75,12 @@ export async function getInSpace() {
     flights: a.flights_count ?? null,
     spacewalks: a.spacewalks_count ?? null,
     wiki: a.wiki || null,
+    bio: a.bio || null,
+    age: a.age ?? null,
+    firstFlight: a.first_flight ?? null,
+    evaTime: a.eva_time ?? null,
+    role: crewInfo.get(a.id)?.role ?? null,
+    stationId: crewInfo.get(a.id)?.stationId ?? null,
   }));
   const stations: Station[] = (space.stations ?? []).map((s: any) => ({
     id: s.id as number,
@@ -81,6 +95,12 @@ export async function getInSpace() {
     expeditions: (s.active_expeditions ?? []).map((e: any) => ({ name: e.name, start: e.start ?? null })) as { name: string; start: string | null }[],
     mass: s.mass ?? null,
     volume: s.volume ?? null,
+    height: s.height ?? null,
+    width: s.width ?? null,
+    ports: (s.docking_location ?? []).map((d: any) => ({
+      name: d.name,
+      vehicle: d.docked?.flight_vehicle?.spacecraft?.name ?? d.docked?.spacecraft?.name ?? d.docked?.name ?? null,
+    })),
   }));
   return { astronauts, stations, at: space.at as number };
 }
