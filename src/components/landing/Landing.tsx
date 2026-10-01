@@ -20,6 +20,7 @@ import { countryName, isPrecise } from "@/lib/format";
 import { typeLabel } from "@/lib/data/entities-labels";
 import { useLive } from "@/lib/hooks/live";
 import { WatchButton } from "@/components/launch/LiveExtras";
+import { HtmlFlag } from "@/components/ui/HtmlFlag";
 
 const GlobeStage = dynamic(() => import("./GlobeStage").then((m) => m.GlobeStage), { ssr: false });
 const useIso = typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -222,6 +223,7 @@ export function Landing({ data }: { data: LandingData }) {
 
   return (
     <div ref={root} data-landing className="relative bg-bg text-fg">
+      <HtmlFlag name="landing-snap" />
       <div className="pointer-events-none fixed inset-0 z-0"><GlobeStage ref={globe} pads={data.pads} /></div>
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,var(--color-bg)_95%)]" />
       <div ref={dimRef} className="pointer-events-none fixed inset-0 z-0 bg-bg opacity-0" />

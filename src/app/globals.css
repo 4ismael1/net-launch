@@ -122,12 +122,12 @@ body {
 .net-popup .maplibregl-popup-tip { display: none; }
 
 /* Páginas a pantalla completa (mapa): sin scroll general ni pie; los paneles internos hacen su propio scroll */
-html:has([data-fullbleed]),
-body:has([data-fullbleed]) {
+html[data-fullbleed],
+html[data-fullbleed] body {
   overflow: hidden;
   overscroll-behavior: none;
 }
-body:has([data-fullbleed]) [data-app-footer] {
+html[data-fullbleed] [data-app-footer] {
   display: none;
 }
 
@@ -164,7 +164,7 @@ body:has([data-fullbleed]) [data-app-footer] {
 }
 
 /* Portada: encaje NATIVO del navegador en cada sección (scroll libre, sin secuestrar la rueda) */
-html:has([data-landing]) {
+html[data-landing-snap] {
   scroll-snap-type: y mandatory;
 }
 [data-snap] {
@@ -172,5 +172,5 @@ html:has([data-landing]) {
   scroll-snap-stop: normal;
 }
 @media (prefers-reduced-motion: reduce) {
-  html:has([data-landing]) { scroll-snap-type: y proximity; }
+  html[data-landing-snap] { scroll-snap-type: y proximity; }
 }

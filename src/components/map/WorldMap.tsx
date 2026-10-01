@@ -40,6 +40,15 @@ function toGeoJSON(pads: MapPad[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
   };
 }
 
+function qs(view: string, country: string, operator: string, selected: number | null) {
+  const q = new URLSearchParams();
+  if (view !== "all") q.set("vista", view);
+  if (country) q.set("pais", country);
+  if (operator) q.set("op", operator);
+  if (selected) q.set("pad", String(selected));
+  return q.toString();
+}
+
 export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOperator[] }) {
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
@@ -73,15 +82,27 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
   );
   const pad = selected ? pads.find((p) => p.id === selected) ?? null : null;
   const rows = activity?.id === selected ? activity.rows : null;
+  const padRef = useRef(pad);
+  padRef.current = pad;
 
-  // Estado en la URL (compartible)
+  // URL → estado: enlaces "Ver en el mapa", atrás/adelante y la página conservada por Next al volver.
+  // Se ajusta durante el render (antes de los efectos), así el efecto de abajo nunca pisa la URL nueva.
+  const urlKey = params.toString();
+  const [seenUrl, setSeenUrl] = useState(urlKey);
+  if (urlKey !== seenUrl) {
+    const p = new URLSearchParams(urlKey);
+    setSeenUrl(urlKey);
+    setView((p.get("vista") as View) ?? "all");
+    setCountry(p.get("pais") ?? "");
+    setOperator(p.get("op") ?? "");
+    setSelected(p.get("pad") ? Number(p.get("pad")) : null);
+  }
+
+  // Estado → URL (compartible)
   useEffect(() => {
-    const q = new URLSearchParams();
-    if (view !== "all") q.set("vista", view);
-    if (country) q.set("pais", country);
-    if (operator) q.set("op", operator);
-    if (selected) q.set("pad", String(selected));
-    router.replace(`/mapa${q.size ? `?${q}` : ""}`, { scroll: false });
+    const s = qs(view, country, operator, selected);
+    if (s === new URLSearchParams(window.location.search).toString()) return;
+    router.replace(`/mapa${s ? `?${s}` : ""}`, { scroll: false });
   }, [view, country, operator, selected, router]);
 
   // Crear el mapa (una vez)
@@ -94,8 +115,8 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
       map = new Map({
         container: el.current, locale: MAP_LOCALE,
         style: STYLES.dark,
-        center: [0, 20],
-        zoom: 1.4,
+        center: padRef.current ? [padRef.current.lng, padRef.current.lat] : [0, 20],
+        zoom: padRef.current ? 9 : 1.4,
         minZoom: 0.8,
         attributionControl: false,
         renderWorldCopies: false,
@@ -225,7 +246,8 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
     };
     if (map.isStyleLoaded() && map.getSource("pads")) go();
     else map.once("idle", go);
-  }, [pad, base]);
+    // styleVersion: el mapa se crea de forma asíncrona; al estar listo se vuela a la plataforma pedida
+  }, [pad, base, styleVersion]);
 
   useEffect(() => {
     if (!selected) return;
