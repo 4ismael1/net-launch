@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import clsx from "clsx";
 import { useLive } from "@/lib/hooks/live";
 import { useNow } from "@/lib/hooks/client";
@@ -25,18 +26,32 @@ export function LiveNextChip({ initial }: { initial: Chip }) {
   );
 }
 
-/** Última sincronización con LL2; aviso si los datos tienen más de 1 hora. */
+/** Indicador discreto de la fuente; el detalle (hace cuánto, por qué) aparece al pasar el ratón o al hacer clic. */
 export function LiveSyncInfo({ initial }: { initial: string | null }) {
   const live = useLive();
   const now = useNow();
+  const [open, setOpen] = useState(false);
   const at = live?.lastSync ?? initial;
   const age = at && now ? (now - new Date(at).getTime()) / 60_000 : null;
   const stale = age !== null && age > 60;
   return (
-    <span title="Fuente: Launch Library 2 (The Space Devs)"
-      className={clsx("hidden items-center gap-2 text-[11px] xl:flex", stale ? "rounded-sm border border-tbc/30 bg-tbc/10 px-1.5 py-0.5 text-tbc" : "text-fg-dim")}>
-      <span className={clsx("size-1.5 rounded-full", stale ? "bg-tbc" : "bg-go animate-pulse-dot")} />
-      {at && now ? (stale ? `Datos de ${relativeTime(at, now).replace(/^hace /, "hace ")}` : `LL2 · ${relativeTime(at, now)}`) : "LL2"}
+    <span className="relative hidden xl:inline-flex" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Estado de los datos"
+        className="flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-[11px] text-fg-dim hover:text-fg-muted">
+        <span className={clsx("size-1.5 rounded-full", stale ? "bg-tbc" : "bg-go animate-pulse-dot")} />
+        LL2
+      </button>
+      {open && (
+        <span className="absolute top-full right-0 z-50 mt-2 w-64 rounded-md border border-line-strong bg-surface-2 p-3 text-xs text-fg-muted shadow-2xl">
+          <span className="block font-medium text-fg">Launch Library 2 · The Space Devs</span>
+          <span className="mt-1 block">
+            Última sincronización: <span className={stale ? "text-tbc" : "text-fg"}>{at && now ? relativeTime(at, now) : "—"}</span>
+          </span>
+          <span className="mt-1.5 block leading-relaxed text-fg-dim">
+            Horarios y estados se sincronizan automáticamente cada 15–25 min. Las cuentas regresivas y las órbitas se calculan en vivo en tu navegador.
+          </span>
+        </span>
+      )}
     </span>
   );
 }
