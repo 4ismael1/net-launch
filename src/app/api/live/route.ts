@@ -22,7 +22,7 @@ export async function GET(req: Request) {
       if (last !== null && last < 10) return;
       await markAttempt();
       const r = await runSync({ source: "web", deadlineMs: 40_000, maxTranslateRequests: 2 });
-      if (r.upserted > 0) revalidateTag("ll2", "max");
+      if (r.upserted > 0 || (r.catalog ?? 0) > 0) revalidateTag("ll2", "max");
     } catch (e) {
       console.error("autosync", e);
     }

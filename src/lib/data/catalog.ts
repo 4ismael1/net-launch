@@ -162,10 +162,10 @@ export async function getReuse() {
   ]);
   const rows = stages.rows.map((r) => ({
     slug: r.slug, name: r.name, net: r.net, status: r.status, provider: r.provider,
-    serial: r.s.launcher?.serial_number ?? null, launcherId: r.s.launcher?.id ?? null, flight: r.s.launcher_flight_number ?? null,
+    serial: r.s.launcher?.serial_number && !/^unknown/i.test(r.s.launcher.serial_number) ? r.s.launcher.serial_number : null, launcherId: r.s.launcher?.id ?? null, flight: r.s.launcher_flight_number ?? null,
     reused: !!r.s.reused, turnaround: isoDur(r.s.turn_around_time), success: r.s.landing?.success ?? null,
-    where: r.s.landing?.landing_location?.abbrev || r.s.landing?.landing_location?.name || null,
-    whereName: r.s.landing?.landing_location?.name ?? null,
+    where: [r.s.landing?.landing_location?.abbrev, r.s.landing?.landing_location?.name].find((x) => x && x !== "N/A") ?? null,
+    whereName: r.s.landing?.landing_location?.name && r.s.landing.landing_location.name !== "N/A" ? r.s.landing.landing_location.name : null,
     type: landingType(r.s.landing?.type?.abbrev, r.s.landing?.type?.name),
   }));
   const now = Date.now();

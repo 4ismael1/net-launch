@@ -30,7 +30,7 @@ export type SyncOptions = {
   deadlineMs?: number;
   maxTranslateRequests?: number;
 };
-export type SyncResult = { ok: boolean; skipped?: string; requests: number; upserted: number; log: string[] };
+export type SyncResult = { ok: boolean; skipped?: string; requests: number; upserted: number; catalog?: number; log: string[] };
 
 const LOCK_TTL = 10 * 60_000;
 /** Candado atómico en la BD: evita dos sincronizaciones a la vez (cron + visita, etc.). */
@@ -183,9 +183,11 @@ function slim(v: unknown): unknown {
   return v;
 }
 
+let catalogSaved = 0;
 async function saveCatalog(kind: string, res: unknown[]) {
   const rows = uniqBy((res as { id: number }[]).filter((x) => typeof x?.id === "number"), (x) => x.id).map((x) => ({ kind, id: x.id, data: slim(x), updatedAt: new Date() }));
   if (!rows.length) return 0;
+  catalogSaved += rows.length;
   await db
     .insert(schema.catalog)
     .values(rows)
@@ -195,6 +197,7 @@ async function saveCatalog(kind: string, res: unknown[]) {
 
 export async function runSync(opts: SyncOptions): Promise<SyncResult> {
   log = [];
+  catalogSaved = 0;
   const started = Date.now();
   deadline = opts.deadlineMs ? started + opts.deadlineMs : Infinity;
   if (!(await acquireLock())) return { ok: true, skipped: "otra sincronización en curso", requests: 0, upserted: 0, log };
@@ -258,7 +261,7 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
 
     // 2b) Instantáneas "En el espacio" y eventos (cada 3 h, 4 peticiones)
     const lastSnap = await getState<number>("snapshots_at", 0);
-    if (now - lastSnap > 3 * 3600_000 && client.remaining >= 5) {
+    if (now - lastSnap > 3 * 3600_000 && client.remaining >= 6) {
       const [evUp, evPrev, astro, stations, expeditions] = [
         await client.get<Page<unknown>>("/events/upcoming/", { limit: 100 }),
         await client.get<Page<unknown>>("/events/previous/", { limit: 30 }),
@@ -268,6 +271,9 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
       ];
       await setState("snap_events", { upcoming: evUp.results, previous: evPrev.results, at: now });
       await setState("snap_space", { astronauts: astro.results, stations: stations.results, expeditions: expeditions.results, at: now });
+      // Últimos lanzamientos completados en modo detallado (aterrizajes, vídeos, cronología): el histórico llega en modo normal
+      const prevDetailed = await client.get<Page<unknown>>("/launches/previous/", { mode: "detailed", limit: 25 });
+      upserted += await saveLaunches(prevDetailed.results);
       await setState("snapshots_at", now);
       say(`instantáneas: ${evUp.results.length}+${evPrev.results.length} eventos, ${astro.results.length} astronautas, ${stations.results.length} estaciones`);
     }
@@ -352,14 +358,14 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
     .where(eq(schema.syncRuns.id, run.id));
 
   // Revalidar la web si está desplegada
-  if (opts.source === "cli" && process.env.SITE_URL && process.env.REVALIDATE_SECRET && upserted > 0) {
+  if (opts.source === "cli" && process.env.SITE_URL && process.env.REVALIDATE_SECRET && (upserted > 0 || catalogSaved > 0)) {
     await fetch(`${process.env.SITE_URL}/api/revalidate`, {
       method: "POST",
       headers: { authorization: `Bearer ${process.env.REVALIDATE_SECRET}` },
     }).catch(() => say("no se pudo revalidar la web"));
   }
   say(`listo · ${client.requests} peticiones · ${upserted} lanzamientos`);
-  return { ok, requests: client.requests, upserted, log };
+  return { ok, requests: client.requests, upserted, catalog: catalogSaved, log };
 }
 
 // Orden: misiones cercanas (±90 días) → organizaciones → textos de catálogo (en el espacio ahora, eventos,
