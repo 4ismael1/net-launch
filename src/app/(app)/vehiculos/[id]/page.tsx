@@ -7,6 +7,7 @@ import { getRocket } from "@/lib/data/entities";
 import { Card, CardHeader, Kpi } from "@/components/ui/Card";
 import { Facts, LaunchListCard, YearBars } from "@/components/entity/shared";
 import { Flag } from "@/components/ui/Flag";
+import { About } from "@/components/ui/About";
 
 export async function generateMetadata({ params }: PageProps<"/vehiculos/[id]">): Promise<Metadata> {
   const d = await getRocket(Number((await params).id));
@@ -58,7 +59,7 @@ async function Content({ params }: Pick<PageProps<"/vehiculos/[id]">, "params">)
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
-          {r.description && <Card><CardHeader title="Descripción" meta="Launch Library 2 (inglés)" /><p lang="en" className="p-4 text-sm leading-relaxed">{r.description}</p></Card>}
+          <About text={r.description} wikiUrl={r.wikiUrl} />
           <LaunchListCard title="Próximos vuelos" rows={d.upcoming} empty="Sin vuelos programados." more={`/lanzamientos?cohete=${r.id}`} />
           <LaunchListCard title="Vuelos recientes" rows={d.recent} empty="Sin resultados registrados todavía." more={`/lanzamientos?vista=pasados&cohete=${r.id}`} />
         </div>

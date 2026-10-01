@@ -197,3 +197,23 @@ export const syncRuns = pgTable("sync_runs", {
   launchesUpserted: integer("launches_upserted").default(0).notNull(),
   log: jsonb("log"),
 });
+
+// Catálogos de LL2 (propulsores, aterrizajes, programas, astronautas, naves): un documento por objeto
+export const catalog = pgTable(
+  "catalog",
+  {
+    kind: text("kind").notNull(), // launchers | landings | programs | astronauts | spacecraft
+    id: integer("id").notNull(),
+    data: jsonb("data").notNull(),
+    updatedAt: tstz("updated_at").defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.id] })],
+);
+
+// Traducciones automáticas EN→ES (Gemini), por hash del texto original: cada texto se traduce una sola vez
+export const translations = pgTable("translations", {
+  hash: text("hash").primaryKey(),
+  src: text("src").notNull(),
+  es: text("es"),
+  createdAt: tstz("created_at").defaultNow().notNull(),
+});

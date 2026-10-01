@@ -1,3 +1,4 @@
+import { About } from "@/components/ui/About";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -53,9 +54,7 @@ async function Content({ params }: Pick<PageProps<"/bases/[id]">, "params">) {
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
-          {loc.description && (
-            <Card><CardHeader title="Descripción" meta="Launch Library 2 (inglés)" /><p lang="en" className="p-4 text-sm leading-relaxed">{loc.description}</p></Card>
-          )}
+          <About text={loc.description} wikiUrl={d.pads.find((p) => p.wiki)?.wiki} />
           <LaunchListCard title="Próximos lanzamientos" rows={d.upcoming} empty="Sin lanzamientos programados." more={`/lanzamientos?base=${loc.id}`} />
           <LaunchListCard title="Lanzamientos recientes" rows={d.recent} empty="Sin resultados registrados todavía." more={`/lanzamientos?vista=pasados&base=${loc.id}`} />
         </div>

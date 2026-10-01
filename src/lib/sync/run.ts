@@ -8,7 +8,11 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import { db, schema } from "@/lib/db";
 import { LL2Client, BudgetExceededError, RateLimitedError, type Page } from "@/lib/ll2/client";
 import { normLaunch, normAgency, normPad, normLocation } from "@/lib/ll2/normalize";
+import { createHash } from "node:crypto";
 import { translateBatch } from "@/lib/translate";
+import { fetchSatcatSummary } from "@/lib/satcat";
+
+const md5 = (t: string) => createHash("md5").update(t, "utf8").digest("hex");
 
 const BASE = process.env.LL2_BASE_URL ?? "https://ll.thespacedevs.com/2.3.0";
 const PER_HOUR = Number(process.env.LL2_MAX_REQUESTS_PER_HOUR ?? 14);
@@ -144,6 +148,51 @@ async function paged(client: LL2Client, path: string, params: Record<string, str
   }
 }
 
+// Peticiones por hora reservadas para lo urgente (incremental de próximos lanzamientos): las tareas de fondo
+// (catálogos, histórico) nunca bajan de aquí, así la web siempre puede refrescar fechas y estados.
+const RESERVE = Number(process.env.LL2_RESERVE ?? 6);
+
+const CATALOG_JOBS = [
+  { kind: "programs", mode: "normal" },
+  { kind: "launchers", mode: "detailed" },
+  { kind: "landings", mode: "normal" },
+  { kind: "spacecraft", mode: "normal" },
+  { kind: "astronauts", mode: "normal" },
+] as const;
+
+/** Como paged(), pero se detiene dejando `reserve` peticiones libres. */
+async function pagedUntil(client: LL2Client, path: string, params: Record<string, string | number>, reserve: number, onPage: (r: unknown[]) => Promise<void>) {
+  let offset = Number(params.offset ?? 0);
+  for (;;) {
+    if (Date.now() > deadline || client.remaining <= reserve) return { done: false, offset };
+    const page = await client.get<Page<unknown>>(path, { ...params, limit: 100, offset });
+    await onPage(page.results);
+    offset += page.results.length;
+    if (!page.next || !page.results.length) return { done: true, offset };
+  }
+}
+
+// Quita campos que no usamos (urls de la API, licencias…) para guardar documentos ligeros
+function slim(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(slim);
+  if (v && typeof v === "object") {
+    const o: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v)) if (k !== "url" && k !== "license" && k !== "variants" && k !== "response_mode") o[k] = slim(x);
+    return o;
+  }
+  return v;
+}
+
+async function saveCatalog(kind: string, res: unknown[]) {
+  const rows = uniqBy((res as { id: number }[]).filter((x) => typeof x?.id === "number"), (x) => x.id).map((x) => ({ kind, id: x.id, data: slim(x), updatedAt: new Date() }));
+  if (!rows.length) return 0;
+  await db
+    .insert(schema.catalog)
+    .values(rows)
+    .onConflictDoUpdate({ target: [schema.catalog.kind, schema.catalog.id], set: { data: sql`excluded.data`, updatedAt: sql`excluded.updated_at` } });
+  return rows.length;
+}
+
 export async function runSync(opts: SyncOptions): Promise<SyncResult> {
   log = [];
   const started = Date.now();
@@ -238,12 +287,27 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
       say("catálogo actualizado");
     }
 
+    // 3b) Catálogos LL2 (semanal, repartido entre ejecuciones con cursor por catálogo): reutilización,
+    // programas, astronautas y naves. Solo con presupuesto por encima de la reserva.
+    const cat = await getState<Record<string, { offset: number; at: number }>>("catalog_jobs", {});
+    for (const job of CATALOG_JOBS) {
+      const st = cat[job.kind] ?? { offset: 0, at: 0 };
+      if (now - st.at < CATALOG_EVERY_MS || client.remaining <= RESERVE || Date.now() > deadline) continue;
+      let n = 0;
+      const r = await pagedUntil(client, `/${job.kind}/`, { mode: job.mode, ordering: "id", offset: st.offset }, RESERVE, async (res) => {
+        n += await saveCatalog(job.kind, res);
+      });
+      cat[job.kind] = r.done ? { offset: 0, at: now } : { offset: r.offset, at: st.at };
+      await setState("catalog_jobs", cat);
+      say(`catálogo ${job.kind}: +${n} (offset ${r.offset}, completo: ${r.done})`);
+    }
+
     // 4) Histórico (hoy → 1957) con el presupuesto sobrante. Descendente: primero lo reciente.
     // Si entran lanzamientos nuevos en "previous" el offset se desplaza hacia atrás → solo repite, nunca salta.
     const bf = await getState<{ offset: number; done: boolean }>("backfill_desc", { offset: 0, done: false });
-    if (!bf.done && client.remaining > 0 && Date.now() < deadline) {
+    if (!bf.done && client.remaining > RESERVE && Date.now() < deadline) {
       let n = 0;
-      const r = await paged(client, "/launches/previous/", { mode: "normal", ordering: "-net", offset: bf.offset }, async (res) => {
+      const r = await pagedUntil(client, "/launches/previous/", { mode: "normal", ordering: "-net", offset: bf.offset }, RESERVE, async (res) => {
         n += await saveLaunches(res);
       });
       await setState("backfill_desc", r);
@@ -256,6 +320,18 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
     else {
       ok = false;
       say(`ERROR: ${(e as Error).stack ?? e}`);
+    }
+  }
+
+  // 4b) Población orbital (CelesTrak SATCAT, semanal; no consume presupuesto de LL2)
+  if (Date.now() < deadline - 15_000 && now - (await getState<number>("satcat_at", 0)) > CATALOG_EVERY_MS) {
+    try {
+      const sum = await fetchSatcatSummary();
+      await setState("satcat", sum);
+      await setState("satcat_at", now);
+      say(`SATCAT: ${sum.total} objetos, ${sum.onOrbit} en órbita`);
+    } catch (e) {
+      say(`SATCAT pausado: ${(e as Error).message}`);
     }
   }
 
@@ -286,34 +362,74 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
   return { ok, requests: client.requests, upserted, log };
 }
 
+// Orden: misiones cercanas (±90 días) → organizaciones → textos de catálogo (en el espacio ahora, eventos,
+// cohetes, programas, bases, biografías, naves…) → resto del histórico de misiones.
 async function translatePending(maxRequests: number) {
   let done = 0;
-  for (let r = 0; r < maxRequests && Date.now() < deadline; r++) {
+  const missions = async (near: boolean) => {
     const { rows } = await db.execute<{ d: string }>(sql`
       SELECT mission_description AS d FROM launches
       WHERE mission_description IS NOT NULL AND mission_description_es IS NULL
+        ${near ? sql`AND net BETWEEN now() - interval '90 days' AND now() + interval '90 days'` : sql``}
       GROUP BY mission_description
       ORDER BY min(abs(extract(epoch FROM (net - now())))) ASC LIMIT 25`);
     const texts = rows.map((x) => x.d);
-    if (!texts.length) {
-      // Luego, descripciones de organizaciones
-      const { rows: ag } = await db.execute<{ id: number; d: string }>(sql`
-        SELECT id, description AS d FROM agencies WHERE description IS NOT NULL AND description_es IS NULL
-        ORDER BY total_launch_count DESC NULLS LAST LIMIT 15`);
-      if (!ag.length) break;
-      const out = await translateBatch(ag.map((x) => x.d));
-      if (!out) break;
-      for (let i = 0; i < ag.length; i++) await db.update(schema.agencies).set({ descriptionEs: out[i] }).where(eq(schema.agencies.id, ag[i].id));
-      done += ag.length;
-      continue;
-    }
+    if (!texts.length) return false;
     const out = await translateBatch(texts);
-    if (!out) break;
+    if (!out) return true; // lote inválido: se reintenta en la próxima vuelta
     for (let i = 0; i < texts.length; i++) {
       await db.update(schema.launches).set({ missionDescriptionEs: out[i] }).where(eq(schema.launches.missionDescription, texts[i]));
     }
     done += texts.length;
+    return true;
+  };
+  const agencies = async () => {
+    const { rows: ag } = await db.execute<{ id: number; d: string }>(sql`
+      SELECT id, description AS d FROM agencies WHERE description IS NOT NULL AND description_es IS NULL
+      ORDER BY total_launch_count DESC NULLS LAST LIMIT 15`);
+    if (!ag.length) return false;
+    const out = await translateBatch(ag.map((x) => x.d));
+    if (out) for (let i = 0; i < ag.length; i++) await db.update(schema.agencies).set({ descriptionEs: out[i] }).where(eq(schema.agencies.id, ag[i].id));
+    if (out) done += ag.length;
+    return true;
+  };
+  const generic = async () => {
+    const { rows } = await db.execute<{ t: string }>(sql`
+      WITH src(t, pri) AS (
+        SELECT jsonb_array_elements(value->'astronauts')->>'bio', 0 FROM sync_state WHERE key = 'snap_space'
+        UNION ALL SELECT jsonb_array_elements(value->'stations')->>'description', 0 FROM sync_state WHERE key = 'snap_space'
+        UNION ALL SELECT jsonb_array_elements(value->'upcoming')->>'description', 1 FROM sync_state WHERE key = 'snap_events'
+        UNION ALL SELECT jsonb_array_elements(value->'previous')->>'description', 2 FROM sync_state WHERE key = 'snap_events'
+        UNION ALL SELECT description, 3 FROM rocket_configs
+        UNION ALL SELECT data->>'description', 3 FROM catalog WHERE kind = 'programs'
+        UNION ALL SELECT description, 4 FROM locations
+        UNION ALL SELECT data#>>'{landing_location,description}', 4 FROM catalog WHERE kind = 'landings'
+        UNION ALL SELECT data#>>'{type,description}', 4 FROM catalog WHERE kind = 'landings'
+        UNION ALL SELECT data->>'description', 5 FROM catalog WHERE kind = 'landings'
+        UNION ALL SELECT data->>'bio', 6 FROM catalog WHERE kind = 'astronauts'
+        UNION ALL SELECT data->>'description', 7 FROM catalog WHERE kind = 'spacecraft'
+        UNION ALL SELECT data->>'details', 8 FROM catalog WHERE kind = 'launchers'
+      )
+      SELECT t FROM src
+      WHERE t IS NOT NULL AND length(t) > 12 AND NOT EXISTS (SELECT 1 FROM translations tr WHERE tr.hash = md5(src.t))
+      GROUP BY t ORDER BY min(pri), t LIMIT 25`);
+    const texts = rows.map((x) => x.t);
+    if (!texts.length) return false;
+    const out = await translateBatch(texts);
+    if (!out) return true;
+    await db
+      .insert(schema.translations)
+      .values(texts.map((t, i) => ({ hash: md5(t), src: t, es: out[i] })))
+      .onConflictDoNothing();
+    done += texts.length;
+    return true;
+  };
+  for (let r = 0; r < maxRequests && Date.now() < deadline; r++) {
+    if (await missions(true)) continue;
+    if (await agencies()) continue;
+    if (await generic()) continue;
+    if (await missions(false)) continue;
+    break;
   }
   return done;
 }
-

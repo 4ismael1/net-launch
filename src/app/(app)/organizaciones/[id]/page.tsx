@@ -1,3 +1,4 @@
+import { About } from "@/components/ui/About";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -57,15 +58,9 @@ async function Content({ params }: Pick<PageProps<"/organizaciones/[id]">, "para
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
-          <Card>
-            <CardHeader title="Acerca de" />
-            {desc ? (
-              <div className="p-4 text-sm leading-relaxed">
-                <p>{desc}</p>
-                {org.descriptionEs && <p className="mt-2 text-[11px] text-fg-dim">Traducción automática (Gemini) del texto de Launch Library 2.</p>}
-              </div>
-            ) : <Empty>No hay una descripción pública disponible.</Empty>}
-          </Card>
+          {desc || org.wikiUrl ? (
+            <OrgAbout es={org.descriptionEs} en={org.description} wikiUrl={org.wikiUrl} />
+          ) : <Card><CardHeader title="Acerca de" /><Empty>No hay una descripción pública disponible.</Empty></Card>}
           <LaunchListCard title="Próximos lanzamientos" rows={d.upcoming} empty="Sin lanzamientos programados." more={`/lanzamientos?op=${org.id}`} />
           <LaunchListCard title="Lanzamientos recientes" rows={d.recent} empty="Sin resultados registrados todavía." more={`/lanzamientos?vista=pasados&op=${org.id}`} />
         </div>
@@ -108,4 +103,9 @@ async function Content({ params }: Pick<PageProps<"/organizaciones/[id]">, "para
       </div>
     </div>
   );
+}
+
+// La organización ya trae su traducción en la tabla de agencias
+function OrgAbout({ es, en, wikiUrl }: { es: string | null; en: string | null; wikiUrl: string | null }) {
+  return <About title="Acerca de" text={en} esOverride={es} wikiUrl={wikiUrl} />;
 }

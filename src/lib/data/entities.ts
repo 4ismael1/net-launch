@@ -135,8 +135,8 @@ export async function getLocation(id: number) {
   if (!loc) return null;
   const col = eq(L.locationId, id);
   const [pads, upcoming, recent, operators, years] = await Promise.all([
-    db.execute<{ id: number; name: string; lat: number | null; lng: number | null; active: boolean | null; total: number | null; upcoming: number }>(sql`
-      SELECT p.id, p.name, p.latitude AS lat, p.longitude AS lng, p.active,
+    db.execute<{ id: number; name: string; lat: number | null; lng: number | null; active: boolean | null; total: number | null; upcoming: number; wiki: string | null }>(sql`
+      SELECT p.id, p.name, p.latitude AS lat, p.longitude AS lng, p.active, p.wiki_url AS wiki,
         GREATEST(COALESCE(p.total_launch_count, 0), (SELECT count(*) FROM launches l WHERE l.pad_id = p.id))::int AS total,
         (SELECT count(*)::int FROM launches l WHERE l.pad_id = p.id AND l.net > now() AND l.status_abbrev IN ('Go','TBC','TBD','Hold')) AS upcoming
       FROM pads p WHERE p.location_id = ${id} ORDER BY upcoming DESC, total DESC`),
