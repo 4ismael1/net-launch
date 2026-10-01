@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getProbes } from "@/lib/data/universe";
+import { wikiEs } from "@/lib/i18n";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Streamed } from "@/components/ui/Streamed";
 import { Card, Empty } from "@/components/ui/Card";
@@ -21,6 +22,9 @@ export default function Page() {
 
 async function Content() {
   const { probes, earth, at } = await getProbes();
+  // Foto y resumen en español de cada sonda (Wikipedia ES, caché de semanas)
+  const wiki = await Promise.all(probes.map((p) => wikiEs(p.wiki)));
+  const info = Object.fromEntries(probes.map((p, i) => [p.id, wiki[i] ? { extract: wiki[i]!.extract, url: wiki[i]!.url, image: wiki[i]!.thumb ?? null } : null]));
   if (!probes.length) return <Card><Empty>JPL Horizons no respondió en este momento. Vuelve a intentarlo en unos minutos.</Empty></Card>;
-  return <ProbesView probes={probes} earth={earth} at={at} />;
+  return <ProbesView probes={probes} earth={earth} at={at} info={info} />;
 }

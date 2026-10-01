@@ -28,34 +28,44 @@ export async function translationFor(text: string | null | undefined) {
   return (await translationsFor([text]))[text] ?? null;
 }
 
-export type WikiSummary = { title: string; extract: string; url: string; thumb?: string };
+export type WikiSummary = { title: string; extract: string; url: string; thumb?: string; image?: string };
+
+const WIKI_UA = { "User-Agent": "NET-plataforma-universitaria/1.0 (https://net-launch.vercel.app; proyecto académico UPB)", "Api-User-Agent": "NET-plataforma-universitaria/1.0" };
+
+async function wikiFetch(wikiUrl: string): Promise<WikiSummary | null> {
+  const u = new URL(wikiUrl);
+  const m = u.pathname.match(/\/wiki\/(.+)$/);
+  if (!m) return null;
+  const lang = u.hostname.split(".")[0];
+  let title = decodeURIComponent(m[1]);
+  if (lang !== "es") {
+    const q = new URL(`https://${lang}.wikipedia.org/w/api.php`);
+    Object.entries({ action: "query", prop: "langlinks", lllang: "es", titles: title, redirects: "1", format: "json", formatversion: "2" }).forEach(([k, v]) => q.searchParams.set(k, v));
+    const r = await fetch(q, { signal: AbortSignal.timeout(6000), headers: WIKI_UA });
+    if (!r.ok) throw new Error(`wiki ${r.status}`);
+    const es = (await r.json())?.query?.pages?.[0]?.langlinks?.[0]?.title;
+    if (!es) return null; // no hay artículo en español (resultado válido, se cachea)
+    title = es;
+  }
+  const r = await fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`, { signal: AbortSignal.timeout(6000), headers: WIKI_UA });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`wiki ${r.status}`);
+  const s = await r.json();
+  if (s.type === "disambiguation" || !s.extract) return null;
+  return { title: s.title, extract: s.extract, url: s.content_urls?.desktop?.page ?? `https://es.wikipedia.org/wiki/${encodeURIComponent(title)}`, thumb: s.thumbnail?.source, image: s.originalimage?.source };
+}
 
 /** Resumen de Wikipedia en español a partir del enlace de la Wikipedia en inglés (vía enlaces interlingüísticos). */
 export async function wikiEs(wikiUrl: string | null | undefined): Promise<WikiSummary | null> {
   "use cache";
-  cacheLife("weeks");
-  if (!wikiUrl) return null;
+  if (!wikiUrl) { cacheLife("weeks"); return null; }
   try {
-    const u = new URL(wikiUrl);
-    const m = u.pathname.match(/\/wiki\/(.+)$/);
-    if (!m) return null;
-    const lang = u.hostname.split(".")[0];
-    let title = decodeURIComponent(m[1]);
-    const opts = { signal: AbortSignal.timeout(5000), headers: { "User-Agent": "NET-plataforma-universitaria (UPB)" } };
-    if (lang !== "es") {
-      const q = new URL("https://en.wikipedia.org/w/api.php");
-      Object.entries({ action: "query", prop: "langlinks", lllang: "es", titles: title, redirects: "1", format: "json", formatversion: "2" }).forEach(([k, v]) => q.searchParams.set(k, v));
-      const j = await (await fetch(q, opts)).json();
-      const es = j?.query?.pages?.[0]?.langlinks?.[0]?.title;
-      if (!es) return null;
-      title = es;
-    }
-    const r = await fetch(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`, opts);
-    if (!r.ok) return null;
-    const s = await r.json();
-    if (s.type === "disambiguation" || !s.extract) return null;
-    return { title: s.title, extract: s.extract, url: s.content_urls?.desktop?.page ?? `https://es.wikipedia.org/wiki/${encodeURIComponent(title)}`, thumb: s.thumbnail?.source };
+    const out = await wikiFetch(wikiUrl);
+    cacheLife("weeks");
+    return out;
   } catch {
+    // Fallo puntual (red, límite): caché corta para reintentar pronto
+    cacheLife({ stale: 60, revalidate: 600, expire: 3600 });
     return null;
   }
 }

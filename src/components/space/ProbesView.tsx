@@ -46,10 +46,12 @@ function elapsed(from: string, now: number) {
   return `${y} años y ${d} días`;
 }
 
-export function ProbesView({ probes, earth, at: serverAt }: { probes: Probe[]; earth: Sample[] | null; at: number }) {
+type Info = { extract: string; url: string; image: string | null } | null;
+
+export function ProbesView({ probes, earth, at: serverAt, info }: { probes: Probe[]; earth: Sample[] | null; at: number; info: Record<number, Info> }) {
   const live = useNow();
   const now = live ?? serverAt;
-  const [sel, setSel] = useState(probes[0]?.id ?? 0);
+  const [sel, setSel] = useState(probes.find((p) => p.id === -31)?.id ?? probes[0]?.id ?? 0);
 
   const rot = useMemo(() => Rotation_EQJ_ECL(), []);
   // Planetas: se recalculan cada minuto (se mueven muy despacio a esta escala)
@@ -122,7 +124,7 @@ export function ProbesView({ probes, earth, at: serverAt }: { probes: Probe[]; e
             const l = labels.find((x) => x.id === r.id)!;
             const on = r.id === sel;
             return (
-              <g key={r.id} className="cursor-pointer" onClick={() => setSel(r.id)} onMouseEnter={() => setSel(r.id)}>
+              <g key={r.id} className="cursor-pointer" onClick={() => setSel(r.id)}>
                 <circle cx={l.x} cy={l.y} r={12} fill="transparent" />
                 <rect x={l.x - 4} y={l.y - 4} width={8} height={8} transform={`rotate(45 ${l.x} ${l.y})`} fill={on ? "var(--color-accent)" : "#ecebe6"} stroke="var(--color-surface)" strokeWidth={2} />
                 {on && <circle cx={l.x} cy={l.y} r={10} fill="none" stroke="var(--color-accent)" strokeOpacity={0.6} />}
@@ -136,10 +138,16 @@ export function ProbesView({ probes, earth, at: serverAt }: { probes: Probe[]; e
 
       <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
         <section className="rounded-lg border border-line bg-surface">
-          <header className="border-b border-line px-4 py-3">
-            <p className="label">{cur.agency} · lanzada el {new Date(`${cur.launched}T00:00:00Z`).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}</p>
-            <h2 className="mt-0.5 text-xl font-semibold">{cur.name}</h2>
-            <p className="mt-1 text-sm text-fg-muted">{cur.note}</p>
+          <header className="flex gap-4 border-b border-line px-4 py-4">
+            {info[cur.id]?.image && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={cur.id} src={info[cur.id]!.image!} alt="" className="size-24 shrink-0 animate-fade-in rounded-md bg-surface-3 object-cover" />
+            )}
+            <div className="min-w-0">
+              <p className="label">{cur.agency} · lanzada el {new Date(`${cur.launched}T00:00:00Z`).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}</p>
+              <h2 className="mt-0.5 text-xl font-semibold">{cur.name}</h2>
+              <p className="mt-1 text-sm text-fg-muted">{cur.note}</p>
+            </div>
           </header>
           <dl className="grid grid-cols-2 gap-px bg-line">
             <div className="bg-surface p-4"><dt className="label">Distancia a la Tierra</dt><dd className="num mt-1 text-lg leading-tight" suppressHydrationWarning>{km(cur.fromEarth)} km</dd><dd className="num text-xs text-fg-dim" suppressHydrationWarning>{au(cur.fromEarth)} ua</dd></div>
@@ -148,6 +156,12 @@ export function ProbesView({ probes, earth, at: serverAt }: { probes: Probe[]; e
             <div className="bg-surface p-4"><dt className="label">Velocidad respecto al Sol</dt><dd className="num mt-1 text-lg leading-tight" suppressHydrationWarning>{cur.speed.toLocaleString("es", { maximumFractionDigits: 2 })} km/s</dd><dd className="num text-xs text-fg-dim" suppressHydrationWarning>{km(cur.speed * 3600)} km/h</dd></div>
           </dl>
           <p className="border-t border-line px-4 py-2.5 text-xs text-fg-muted" suppressHydrationWarning>Lleva {elapsed(cur.launched, now)} en el espacio.</p>
+          {info[cur.id] && (
+            <div className="border-t border-line px-4 py-3">
+              <p className="line-clamp-4 text-sm leading-relaxed text-fg-muted">{info[cur.id]!.extract}</p>
+              <a href={info[cur.id]!.url} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block text-[11px] text-fg-dim hover:text-fg">Wikipedia en español →</a>
+            </div>
+          )}
         </section>
 
         <section className="rounded-lg border border-line bg-surface">
@@ -164,6 +178,52 @@ export function ProbesView({ probes, earth, at: serverAt }: { probes: Probe[]; e
           </ul>
         </section>
       </div>
+
+      <Ladder rows={rows.map((r) => ({ id: r.id, name: r.name, d: r.fromEarth }))} sel={sel} onSel={setSel} />
     </div>
+  );
+}
+
+/** Distancias desde la Tierra en escala logarítmica, con referencias conocidas y el tiempo que tarda la luz. */
+function Ladder({ rows, sel, onSel }: { rows: { id: number; name: string; d: number }[]; sel: number; onSel: (id: number) => void }) {
+  const W = 1000, H = 172, L = 20, Rr = 980, AX = 114;
+  const lo = Math.log10(300_000), hi = Math.log10(30 * 1e9); // de 300 000 km a 30 000 millones de km
+  const x = (km: number) => L + ((Math.log10(Math.max(km, 300_000)) - lo) / (hi - lo)) * (Rr - L);
+  const refs: [string, number][] = [["Luna", 384_400], ["L2 (Webb)", 1.5e6], ["Sol", AU], ["Júpiter (media)", 5.2 * AU], ["Plutón (media)", 39.5 * AU], ["Heliopausa", 120 * AU]];
+  const lightTicks: [string, number][] = [["1 s luz", C_KM_S], ["1 min luz", C_KM_S * 60], ["1 h luz", C_KM_S * 3600], ["1 día luz", C_KM_S * 86400]];
+  const sorted = [...rows].sort((a, b) => a.d - b.d);
+  return (
+    <section className="overflow-hidden rounded-lg border border-line bg-surface lg:col-span-2">
+      <header className="border-b border-line px-4 py-3"><h2 className="label !text-fg-muted">Escalera de distancias desde la Tierra</h2></header>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="block min-w-[720px] w-full select-none" role="img" aria-label="Distancia de cada sonda a la Tierra en escala logarítmica">
+          <line x1={L} x2={Rr} y1={AX} y2={AX} stroke="var(--color-line-strong)" />
+          {lightTicks.map(([l, km]) => (
+            <g key={l}>
+              <line x1={x(km)} x2={x(km)} y1={AX - 4} y2={AX + 4} stroke="var(--color-fg-dim)" />
+              <text x={x(km)} y={AX + 30} textAnchor="middle" fontSize={10} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{l}</text>
+            </g>
+          ))}
+          {refs.map(([l, km]) => (
+            <g key={l}>
+              <circle cx={x(km)} cy={AX} r={3} fill="var(--color-fg-muted)" />
+              <text x={x(km)} y={AX + 16} textAnchor="middle" fontSize={10.5} fill="var(--color-fg-muted)">{l}</text>
+            </g>
+          ))}
+          {sorted.map((r, i) => {
+            const on = r.id === sel;
+            const y = AX - 16 - (i % 4) * 22;
+            return (
+              <g key={r.id} className="cursor-pointer" onClick={() => onSel(r.id)}>
+                <line x1={x(r.d)} x2={x(r.d)} y1={y + 4} y2={AX - 5} stroke={on ? "var(--color-accent)" : "var(--color-line-strong)"} />
+                <rect x={x(r.d) - 4} y={AX - 4} width={8} height={8} transform={`rotate(45 ${x(r.d)} ${AX})`} fill={on ? "var(--color-accent)" : "#ecebe6"} />
+                <text x={x(r.d)} y={y} textAnchor="middle" fontSize={11} fontWeight={on ? 600 : 400} fill={on ? "var(--color-fg)" : "var(--color-fg-muted)"}>{r.name}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <p className="border-t border-line px-4 py-2.5 text-[11px] text-fg-dim">Cada marca grande multiplica la distancia: la luz tarda 1,3 s en llegar a la Luna, 8 min al Sol y casi un día entero a la Voyager 1.</p>
+    </section>
   );
 }

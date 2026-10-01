@@ -17,20 +17,20 @@ export async function getSatcat() {
 // ───────────── Sondas (JPL Horizons) ─────────────
 
 export const PROBES = [
-  { id: -31, name: "Voyager 1", agency: "NASA", launched: "1977-09-05", note: "El objeto humano más lejano. Cruzó la heliopausa en 2012." },
-  { id: -32, name: "Voyager 2", agency: "NASA", launched: "1977-08-20", note: "La única nave que ha visitado Urano y Neptuno." },
-  { id: -98, name: "New Horizons", agency: "NASA", launched: "2006-01-19", note: "Sobrevoló Plutón (2015) y Arrokoth (2019) en el cinturón de Kuiper." },
-  { id: -96, name: "Parker Solar Probe", agency: "NASA", launched: "2018-08-12", note: "El objeto más rápido construido: atraviesa la corona del Sol." },
-  { id: -144, name: "Solar Orbiter", agency: "ESA/NASA", launched: "2020-02-10", note: "Fotografía los polos del Sol desde órbitas inclinadas." },
-  { id: -121, name: "BepiColombo", agency: "ESA/JAXA", launched: "2018-10-20", note: "Rumbo a Mercurio con dos orbitadores." },
-  { id: -61, name: "Juno", agency: "NASA", launched: "2011-08-05", note: "Estudia Júpiter desde una órbita polar." },
-  { id: -159, name: "Europa Clipper", agency: "NASA", launched: "2024-10-14", note: "En camino a Júpiter para estudiar la luna Europa." },
-  { id: -28, name: "JUICE", agency: "ESA", launched: "2023-04-14", note: "Explorará las lunas heladas de Júpiter." },
-  { id: -49, name: "Lucy", agency: "NASA", launched: "2021-10-16", note: "Visita a los asteroides troyanos de Júpiter." },
-  { id: -255, name: "Psyche", agency: "NASA", launched: "2023-10-13", note: "Hacia un asteroide metálico." },
-  { id: -64, name: "OSIRIS-APEX", agency: "NASA", launched: "2016-09-08", note: "Trajo muestras de Bennu; ahora rumbo a Apofis (2029)." },
-  { id: -91, name: "Hera", agency: "ESA", launched: "2024-10-07", note: "Revisará el asteroide Dimorphos tras el impacto de DART." },
-  { id: -170, name: "James Webb", agency: "NASA/ESA/CSA", launched: "2021-12-25", note: "Telescopio en el punto L2, a 1,5 millones de km de la Tierra." },
+  { id: -31, wiki: "https://en.wikipedia.org/wiki/Voyager_1", name: "Voyager 1", agency: "NASA", launched: "1977-09-05", note: "El objeto humano más lejano. Cruzó la heliopausa en 2012." },
+  { id: -32, wiki: "https://en.wikipedia.org/wiki/Voyager_2", name: "Voyager 2", agency: "NASA", launched: "1977-08-20", note: "La única nave que ha visitado Urano y Neptuno." },
+  { id: -98, wiki: "https://en.wikipedia.org/wiki/New_Horizons", name: "New Horizons", agency: "NASA", launched: "2006-01-19", note: "Sobrevoló Plutón (2015) y Arrokoth (2019) en el cinturón de Kuiper." },
+  { id: -96, wiki: "https://en.wikipedia.org/wiki/Parker_Solar_Probe", name: "Parker Solar Probe", agency: "NASA", launched: "2018-08-12", note: "El objeto más rápido construido: atraviesa la corona del Sol." },
+  { id: -144, wiki: "https://en.wikipedia.org/wiki/Solar_Orbiter", name: "Solar Orbiter", agency: "ESA/NASA", launched: "2020-02-10", note: "Fotografía los polos del Sol desde órbitas inclinadas." },
+  { id: -121, wiki: "https://en.wikipedia.org/wiki/BepiColombo", name: "BepiColombo", agency: "ESA/JAXA", launched: "2018-10-20", note: "Rumbo a Mercurio con dos orbitadores." },
+  { id: -61, wiki: "https://en.wikipedia.org/wiki/Juno_(spacecraft)", name: "Juno", agency: "NASA", launched: "2011-08-05", note: "Estudia Júpiter desde una órbita polar." },
+  { id: -159, wiki: "https://en.wikipedia.org/wiki/Europa_Clipper", name: "Europa Clipper", agency: "NASA", launched: "2024-10-14", note: "En camino a Júpiter para estudiar la luna Europa." },
+  { id: -28, wiki: "https://en.wikipedia.org/wiki/Jupiter_Icy_Moons_Explorer", name: "JUICE", agency: "ESA", launched: "2023-04-14", note: "Explorará las lunas heladas de Júpiter." },
+  { id: -49, wiki: "https://en.wikipedia.org/wiki/Lucy_(spacecraft)", name: "Lucy", agency: "NASA", launched: "2021-10-16", note: "Visita a los asteroides troyanos de Júpiter." },
+  { id: -255, wiki: "https://en.wikipedia.org/wiki/Psyche_(spacecraft)", name: "Psyche", agency: "NASA", launched: "2023-10-13", note: "Hacia un asteroide metálico." },
+  { id: -64, wiki: "https://en.wikipedia.org/wiki/OSIRIS-REx", name: "OSIRIS-APEX", agency: "NASA", launched: "2016-09-08", note: "Trajo muestras de Bennu; ahora rumbo a Apofis (2029)." },
+  { id: -91, wiki: "https://en.wikipedia.org/wiki/Hera_(space_mission)", name: "Hera", agency: "ESA", launched: "2024-10-07", note: "Revisará el asteroide Dimorphos tras el impacto de DART." },
+  { id: -170, wiki: "https://en.wikipedia.org/wiki/James_Webb_Space_Telescope", name: "James Webb", agency: "NASA/ESA/CSA", launched: "2021-12-25", note: "Telescopio en el punto L2, a 1,5 millones de km de la Tierra." },
 ] as const;
 
 export type Sample = [t: number, x: number, y: number, z: number]; // ms, km (heliocéntrico, eclíptica J2000)
