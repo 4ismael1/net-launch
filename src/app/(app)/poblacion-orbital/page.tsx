@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Streamed } from "@/components/ui/Streamed";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { PopulationChart } from "@/components/charts/UniverseCharts";
+import { OrbitShells, SHELL_NOTES } from "@/components/space/OrbitShells";
 
 export const metadata: Metadata = { title: "Población orbital" };
 
@@ -47,6 +48,32 @@ async function Content() {
         <Kpi label="Basura espacial" value={nf(junk)} hint="Etapas, fragmentos y sin identificar" />
         <Kpi label="Ya reentraron" value={nf(s.decayed)} hint={`De ${nf(s.total)} catalogados desde 1957`} />
       </div>
+
+      <section className="overflow-hidden rounded-lg border border-line bg-surface">
+        <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          <div className="border-b border-line bg-[radial-gradient(circle_at_50%_50%,#181816,#121211_70%)] p-3 lg:border-r lg:border-b-0">
+            <OrbitShells byRegime={s.byRegime} activeByRegime={s.activeByRegime} />
+          </div>
+          <div className="flex flex-col justify-center gap-5 p-5 md:p-7">
+            <div>
+              <p className="label">Todo a escala real</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight">Así de lleno está el espacio cercano</h2>
+              <p className="mt-2 text-sm leading-relaxed text-fg-muted">Cada punto representa unos 40 objetos catalogados. En <span className="text-accent">naranja</span>, satélites que siguen funcionando; en gris, satélites apagados, etapas de cohete y fragmentos.</p>
+            </div>
+            <ul className="grid gap-3">
+              {(["LEO", "MEO", "GEO"] as const).map((r) => (
+                <li key={r} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-t border-line pt-3">
+                  <span className="font-medium">{SHELL_NOTES[r].name}</span>
+                  <span className="num text-lg">{nf(s.byRegime[r])}</span>
+                  <span className="text-xs text-fg-dim">{SHELL_NOTES[r].note}</span>
+                  <span className="num text-xs text-accent">{nf(s.activeByRegime[r])} activos</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-fg-dim">El {Math.round((s.byRegime.LEO / s.onOrbit) * 100)} % de todo lo que hay en órbita está a menos de 2 000 km de altura: ahí se concentra el riesgo de colisiones.</p>
+          </div>
+        </div>
+      </section>
 
       <Card>
         <CardHeader title="Objetos en órbita a lo largo del tiempo" meta={last && prev ? `${nf(last.launched)} catalogados este año · ${nf(last.decayed)} reentradas` : undefined} />
