@@ -6,8 +6,8 @@ import { Maximize, Minus, Plus } from "lucide-react";
 type View = { x: number; y: number; w: number };
 
 /**
- * SVG con zoom y desplazamiento: Ctrl/⌘ + rueda o pellizco (trackpad y móvil), arrastre para moverse, doble clic para
- * acercar y botones. La rueda sola sigue desplazando la página. `children(k)` recibe el factor de zoom para que
+ * SVG con zoom y desplazamiento: rueda o pellizco (trackpad y móvil), arrastre para moverse, doble clic para
+ * acercar y botones. Con la vista completa, la rueda hacia abajo sigue desplazando la página. `children(k)` recibe el factor de zoom para que
  * textos, trazos y puntos conserven su tamaño en pantalla.
  */
 export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w: number; h: number; maxZoom?: number; label: string; className?: string; children: (k: number) => ReactNode }) {
@@ -17,6 +17,8 @@ export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w:
   const hintRef = useRef(false);
   const k = w / v.w;
   const vh = (v.w * h) / w;
+  const kRef = useRef(k);
+  useEffect(() => { kRef.current = k; }, [k]);
 
   const clamp = useCallback((nv: View): View => {
     const vw = Math.min(w, Math.max(w / maxZoom, nv.w)), vhh = (vw * h) / w;
@@ -45,7 +47,8 @@ export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w:
     if (!el) return;
     let t: ReturnType<typeof setTimeout> | undefined;
     const wheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) {
+      // La rueda acerca/aleja; con la vista completa, seguir hacia abajo desplaza la página (no queda atrapada)
+      if (e.deltaY > 0 && kRef.current <= 1.001) {
         // Solo se actualiza el estado al cambiar: cada evento de rueda no debe volver a pintar todo el dibujo
         if (!hintRef.current) { hintRef.current = true; setHint(true); }
         clearTimeout(t);
@@ -120,7 +123,7 @@ export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w:
       </div>
       {k > 1.001 && <span className="num pointer-events-none absolute bottom-2 left-2 rounded bg-bg/80 px-1.5 py-0.5 text-[10px] text-fg-muted backdrop-blur">×{k < 10 ? k.toFixed(1) : Math.round(k)}</span>}
       <span className={`pointer-events-none absolute inset-x-0 bottom-2 mx-auto w-fit rounded-md bg-bg/90 px-2.5 py-1 text-xs text-fg-muted shadow transition-opacity duration-300 ${hint ? "opacity-100" : "opacity-0"}`}>
-        Ctrl o ⌘ + rueda para acercar · doble clic para ampliar
+        Rueda o doble clic para ampliar
       </span>
     </div>
   );

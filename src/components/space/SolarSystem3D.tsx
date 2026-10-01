@@ -437,7 +437,7 @@ export function SolarSystem3D({ probes, earth, sel, onSel }: { probes: Probe3D[]
         {scale === "log"
           ? "Distancias al Sol en escala logarítmica (anillos de 1, 10 y 100 ua); las direcciones son reales. "
           : "Escala lineal real: 1 ua = 1/170 de la distancia a la Voyager 1. Acerca la cámara para ver los planetas interiores. "}
-        Tamaños de los puntos no a escala. Toca o haz clic en cualquier objeto para identificarlo; arrastra para girar y usa Ctrl/⌘ + rueda o pellizca para acercar.
+        Tamaños de los puntos no a escala. Toca o haz clic en cualquier objeto para identificarlo; arrastra para girar y usa la rueda o pellizca para acercar.
         Planetas y órbitas: astronomy-engine. Sondas: JPL Horizons (NASA/JPL), muestras cada 6 h interpoladas.
       </p>
     </section>

@@ -104,9 +104,10 @@ export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera
     if (pointers.size === 1) { const [p] = [...pointers.values()]; px = p.x; py = p.y; }
   };
   const wheel = (e: WheelEvent) => {
-    if (!(e.ctrlKey || e.metaKey)) { onHint?.(); return; }
-    e.preventDefault();
     const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+    // La rueda acerca/aleja; ya alejado del todo, seguir hacia abajo desplaza la página (no queda atrapada)
+    if (dy > 0 && zoom >= maxZoom - 1e-3) { onHint?.(); return; }
+    e.preventDefault();
     zoom = clampZoom(zoom * Math.exp(dy * 0.002)); // proporcional al delta: suave con trackpad y con rueda
   };
   host.addEventListener("pointerdown", down);

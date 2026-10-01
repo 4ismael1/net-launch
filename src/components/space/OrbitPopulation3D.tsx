@@ -225,7 +225,7 @@ export function OrbitPopulation3D({ onOrbit, catalogByType }: { onOrbit: number;
               <CtlBtn label="Reencuadrar" onClick={() => engine.current?.resetView()}><Maximize2 className="size-4" /></CtlBtn>
             </div>
 
-            {!selRow && <p className="pointer-events-none absolute bottom-3 left-3 hidden text-[11px] text-fg-dim md:block">Arrastra para girar · Ctrl/⌘ + rueda o pellizco para acercar · clic en un punto para identificarlo</p>}
+            {!selRow && <p className="pointer-events-none absolute bottom-3 left-3 hidden text-[11px] text-fg-dim md:block">Arrastra para girar · rueda o pellizco para acercar · clic en un punto para identificarlo</p>}
             {selRow && sel != null && <InfoCard key={selRow[0]} engine={engine} index={sel} row={selRow} source={data.sources[selRow[15]]?.label ?? ""} onClose={() => setSel(null)} />}
           </>
         )}

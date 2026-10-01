@@ -61,9 +61,10 @@ export function solarControls(
   };
   const leave = () => opts.onLeave?.();
   const wheel = (e: WheelEvent) => {
-    if (!(e.ctrlKey || e.metaKey)) { opts.onHint?.(); return; }
-    e.preventDefault();
     const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+    // La rueda acerca/aleja; ya alejado del todo, seguir hacia abajo desplaza la página
+    if (dy > 0 && goal.dist >= maxDist - 1e-6) { opts.onHint?.(); return; }
+    e.preventDefault();
     goal.dist = clamp(goal.dist * Math.exp(dy * 0.002));
   };
   host.addEventListener("pointerdown", down);

@@ -22,7 +22,7 @@ export function MiniMap({ lat, lng, label }: { lat: number; lng: number; label: 
         center: [lng, lat],
         zoom: KEY ? 14 : 9,
         attributionControl: false,
-        cooperativeGestures: true,
+        cooperativeGestures: false,
       });
       map.addControl(new NavigationControl({ showCompass: false }), "top-right");
       map.addControl(new AttributionControl({ compact: true }), "bottom-right");

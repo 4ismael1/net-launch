@@ -288,7 +288,7 @@ export function SatExplorer({ groups, categories, featured }: {
           <div className="relative min-h-[420px] flex-1">
             <div ref={host} className="absolute inset-0 cursor-grab touch-pan-y active:cursor-grabbing" role="img" aria-label="Satélites seleccionados alrededor de la Tierra, posiciones calculadas" />
             {hover && <div className="pointer-events-none absolute z-10 rounded-md border border-line bg-bg/90 px-2 py-1 text-xs backdrop-blur" style={{ left: hover.x + 12, top: hover.y + 12 }}>{hover.name}</div>}
-            {!focusEntry && total > 0 && <p className="pointer-events-none absolute bottom-3 left-3 hidden text-[11px] text-fg-dim sm:block">Arrastra para girar · Ctrl/⌘ + rueda o pellizco para acercar · clic en un satélite para seguirlo</p>}
+            {!focusEntry && total > 0 && <p className="pointer-events-none absolute bottom-3 left-3 hidden text-[11px] text-fg-dim sm:block">Arrastra para girar · rueda o pellizco para acercar · clic en un satélite para seguirlo</p>}
             <GlobeHint show={wheelHint} />
 
             {/* Controles de vista */}

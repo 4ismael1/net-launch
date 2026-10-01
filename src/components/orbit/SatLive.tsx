@@ -80,7 +80,7 @@ export function SatLive({ omm }: { omm: OMM }) {
     import("maplibre-gl").then(({ Map, AttributionControl, setWorkerUrl }) => {
       if (cancelled || !mapEl.current) return;
       setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
-      map = new Map({ container: mapEl.current, locale: MAP_LOCALE, style: STYLE, center: [0, 15], zoom: 0.6, minZoom: 0, attributionControl: false, renderWorldCopies: false, cooperativeGestures: true });
+      map = new Map({ container: mapEl.current, locale: MAP_LOCALE, style: STYLE, center: [0, 15], zoom: 0.6, minZoom: 0, attributionControl: false, renderWorldCopies: false, cooperativeGestures: false });
       map.addControl(new AttributionControl({ compact: true }), "bottom-left");
       map.on("style.load", () => {
         const m = map!;

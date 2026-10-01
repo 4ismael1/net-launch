@@ -41,7 +41,7 @@ export function PanelMap({ points }: { points: Pt[] }) {
       setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
       map = new Map({
         container: el.current, locale: MAP_LOCALE, style: STYLE, center: [10, 22], zoom: 0.55, minZoom: 0, maxZoom: 6,
-        attributionControl: false, renderWorldCopies: false, cooperativeGestures: true,
+        attributionControl: false, renderWorldCopies: false, cooperativeGestures: false,
       });
       map.addControl(new AttributionControl({ compact: true }), "bottom-left");
       const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 10, className: "net-popup" });

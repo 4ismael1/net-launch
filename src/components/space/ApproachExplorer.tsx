@@ -172,7 +172,7 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
           }}
         </ZoomPan>
         <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-4 py-2.5 text-[11px] text-fg-muted">
-          <span>La <span className="text-fg">distancia al centro es real</span> (escala lineal); el ángulo indica <span className="text-fg">cuándo</span> pasa. Toca un punto para identificarlo. Acerca con Ctrl/⌘ + rueda, pellizco o doble clic.</span>
+          <span>La <span className="text-fg">distancia al centro es real</span> (escala lineal); el ángulo indica <span className="text-fg">cuándo</span> pasa. Toca un punto para identificarlo. Acerca con la rueda, pellizco o doble clic.</span>
           <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-accent" /> Más cerca que la Luna</span>
           <span>Tamaño del punto ~ diámetro estimado</span>
         </div>

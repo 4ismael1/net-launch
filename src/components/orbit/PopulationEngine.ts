@@ -139,7 +139,7 @@ export class PopulationEngine {
       if (active.size === 1) { downX = e.clientX; downY = e.clientY; multi = false; } else multi = true;
     }, { signal });
     host.addEventListener("pointercancel", (e) => { active.delete(e.pointerId); }, { signal });
-    host.addEventListener("wheel", (e) => { if (e.ctrlKey || e.metaKey) this.target = null; }, { signal, passive: true });
+    host.addEventListener("wheel", () => { this.target = null; }, { signal, passive: true }); // la rueda manda sobre el encuadre animado
     host.addEventListener("pointerup", (e) => {
       const was = active.delete(e.pointerId);
       if (!was || multi || active.size || Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
