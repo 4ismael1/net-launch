@@ -62,7 +62,7 @@ async function Content({ searchParams }: Pick<PageProps<"/naves">, "searchParams
   if (!items.length) return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       {hero}
-      <Card><Empty>El catálogo histórico de naves se está descargando de LL2 poco a poco (respetando su límite de peticiones). Vuelve en unas horas.</Empty></Card>
+      <Card><Empty>El catálogo histórico de naves (récords, modelos y vuelos) estará disponible próximamente.{hero ? " Mientras tanto, arriba puedes ver las naves acopladas ahora mismo a las estaciones." : ""}</Empty></Card>
     </div>
   );
   // "En el espacio": el catálogo es semanal; las acopladas de la instantánea (cada 3 h) cuentan siempre

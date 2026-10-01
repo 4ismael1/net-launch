@@ -217,9 +217,10 @@ const RESERVE = Number(process.env.LL2_RESERVE ?? 6);
 const CATALOG_JOBS = [
   { kind: "programs", mode: "normal" },
   { kind: "launchers", mode: "detailed" },
-  { kind: "landings", mode: "normal" },
-  { kind: "spacecraft", mode: "normal" },
+  // Astronautas y naves antes que aterrizajes: sus páginas dependen por completo del catálogo
   { kind: "astronauts", mode: "normal" },
+  { kind: "spacecraft", mode: "normal" },
+  { kind: "landings", mode: "normal" },
 ] as const;
 
 /** Como paged(), pero se detiene dejando `reserve` peticiones libres. */

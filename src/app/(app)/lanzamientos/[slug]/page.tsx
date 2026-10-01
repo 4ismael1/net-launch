@@ -117,7 +117,7 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
                 ) : (
                   <>
                     <p lang="en" className="text-fg">{l.missionDescription}</p>
-                    <p className="text-[11px] text-fg-dim">Descripción original en inglés (Launch Library 2); la traducción está en cola.</p>
+                    <p className="text-[11px] text-fg-dim">Descripción original en inglés (Launch Library 2).</p>
                   </>
                 )
               ) : (

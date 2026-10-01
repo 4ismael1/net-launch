@@ -27,7 +27,7 @@ export async function About({ title = "Descripción", text, esOverride, wikiUrl 
       {text && (
         <div className="p-4">
           <p lang={es ? "es" : "en"} className="text-sm leading-relaxed">{es ?? text}</p>
-          <p className="mt-2 text-[11px] text-fg-dim">{es ? "Launch Library 2 · traducción automática (Gemini)" : "Launch Library 2 · original en inglés, traducción en cola"}</p>
+          <p className="mt-2 text-[11px] text-fg-dim">{es ? "Launch Library 2 · traducción automática (Gemini)" : "Launch Library 2 · texto original en inglés"}</p>
         </div>
       )}
       <Suspense fallback={wikiUrl ? <div className="mx-4 mb-4 h-16 animate-pulse rounded-md bg-surface-2" /> : null}>

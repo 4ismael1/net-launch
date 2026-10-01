@@ -92,7 +92,7 @@ async function Content() {
       </section>
 
       {!d.hasCatalog && (
-        <p className="rounded-lg border border-line bg-surface px-4 py-3 text-sm text-fg-muted">El catálogo de propulsores y zonas de aterrizaje se está descargando de LL2 poco a poco (respetando su límite de peticiones).</p>
+        <p className="rounded-lg border border-line bg-surface px-4 py-3 text-sm text-fg-muted">Catálogo de propulsores y zonas de aterrizaje en actualización: algunas cifras y zonas se irán completando.</p>
       )}
 
       {/* Zonas de recuperación */}
