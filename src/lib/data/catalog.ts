@@ -5,6 +5,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { translationsFor } from "@/lib/i18n";
 import { DONE_STATUSES, PENDING_STATUSES } from "@/lib/format";
+import { getInSpace } from "@/lib/data/space";
 
 const { launches: L, agencies: A, rocketConfigs: R, pads: P, locations: LOC, catalog: C } = schema;
 
@@ -258,7 +259,7 @@ function normAstro(a: RawAstronaut): Astronaut {
 export async function listAstronauts() {
   "use cache";
   cached();
-  const all = (await catalogOf<RawAstronaut>("astronauts")).map(normAstro).filter((a) => a.flights > 0 || a.inSpace);
+  const all = (await catalogOf<RawAstronaut>("astronauts")).filter((a) => a.type?.name !== "Non-Human").map(normAstro).filter((a) => a.flights > 0 || a.inSpace);
   return all.map(({ bio: _b, wiki: _w, imageBig: _i, ...rest }) => (void _b, void _w, void _i, rest));
 }
 
@@ -266,8 +267,18 @@ export async function getAstronaut(id: number) {
   "use cache";
   cached();
   const [row] = await db.select({ data: C.data }).from(C).where(and(eq(C.kind, "astronauts"), eq(C.id, id))).limit(1);
-  if (!row) return null;
-  const a = normAstro(row.data as RawAstronaut);
+  let a: Astronaut;
+  if (row) a = normAstro(row.data as RawAstronaut);
+  else {
+    // Aún sin catálogo: quienes están ahora en el espacio vienen en la instantánea de "En el espacio"
+    const x = (await getInSpace())?.astronauts.find((p) => p.id === id);
+    if (!x) return null;
+    a = {
+      id: x.id, name: x.name, status: "Active", agency: x.agency, agencyAbbrev: x.agencyAbbrev, agencyId: x.agencyId, image: x.imageUrl, imageBig: x.imageUrl,
+      inSpace: true, timeInSpace: isoDur(x.timeInSpace) ?? 0, eva: isoDur(x.evaTime) ?? 0, age: x.age, born: null, died: null, country: x.nationality[0] ?? null,
+      countryName: null, flights: x.flights ?? 0, spacewalks: x.spacewalks ?? 0, first: x.firstFlight, last: x.lastFlight, bio: x.bio, wiki: x.wiki,
+    };
+  }
   const path = `$.rocket.spacecraft_stage[*].launch_crew[*].astronaut ? (@.id == ${id})`;
   const path2 = `$.rocket.spacecraft_stage.launch_crew[*].astronaut ? (@.id == ${id})`;
   const [flights, es] = await Promise.all([

@@ -47,7 +47,7 @@ export type Station = {
   id: number; name: string; orbit: string | null; founded: string | null; description: string | null; imageUrl: string | null;
   owners: { id: number; name: string }[]; crew: number | null; docked: number | null; expeditions: { name: string; start: string | null }[];
   mass: number | null; volume: number | null;
-  ports: { name: string; vehicle: string | null }[];
+  ports: { name: string; vehicle: string | null; image: string | null; since: string | null }[];
   height: number | null; width: number | null;
 };
 
@@ -62,7 +62,8 @@ export async function getInSpace() {
   for (const e of space.expeditions ?? []) {
     for (const m of e.crew ?? []) if (m.astronaut?.id) crewInfo.set(m.astronaut.id, { role: m.role?.role ?? null, stationId: e.spacestation?.id ?? null });
   }
-  const astronauts: Astronaut[] = (space.astronauts ?? []).map((a: any) => ({
+  // "Non-Human" (p. ej. Starman, el maniquí del Tesla de Falcon Heavy) no es una persona en el espacio
+  const astronauts: Astronaut[] = (space.astronauts ?? []).filter((a: any) => a.type?.name !== "Non-Human").map((a: any) => ({
     id: a.id as number,
     name: a.name as string,
     agency: a.agency?.name ?? null,
@@ -97,10 +98,17 @@ export async function getInSpace() {
     volume: s.volume ?? null,
     height: s.height ?? null,
     width: s.width ?? null,
-    ports: (s.docking_location ?? []).map((d: any) => ({
-      name: d.name,
-      vehicle: d.docked?.flight_vehicle?.spacecraft?.name ?? d.docked?.spacecraft?.name ?? d.docked?.name ?? null,
-    })),
+    // LL2 2.3.0: docking_location[].currently_docked.{flight_vehicle_chaser.spacecraft | space_station_chaser}
+    ports: (s.docking_location ?? []).map((d: any) => {
+      const cd = d.currently_docked ?? d.docked ?? null;
+      const sc = cd?.flight_vehicle_chaser?.spacecraft ?? cd?.flight_vehicle?.spacecraft ?? null;
+      return {
+        name: d.name,
+        vehicle: sc?.name ?? cd?.space_station_chaser?.name ?? null,
+        image: sc?.image?.thumbnail_url ?? sc?.image?.image_url ?? null,
+        since: cd?.docking ?? null,
+      };
+    }),
   }));
   return { astronauts, stations, at: space.at as number };
 }

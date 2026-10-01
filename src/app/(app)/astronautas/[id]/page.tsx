@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, User } from "lucide-react";
-import { astroStatus, getAstronaut, listAstronauts } from "@/lib/data/catalog";
+import { astroStatus, getAstronaut } from "@/lib/data/catalog";
+import { getInSpace } from "@/lib/data/space";
 import { Streamed } from "@/components/ui/Streamed";
 import { Card, CardHeader, Kpi } from "@/components/ui/Card";
 import { Facts, LaunchListCard } from "@/components/entity/shared";
@@ -11,7 +12,7 @@ import { Flag } from "@/components/ui/Flag";
 import { countryName, durLabel } from "@/lib/format";
 
 export async function generateStaticParams() {
-  const ids = (await listAstronauts()).filter((a) => a.inSpace).slice(0, 12).map((a) => ({ id: String(a.id) }));
+  const ids = ((await getInSpace())?.astronauts ?? []).slice(0, 12).map((a) => ({ id: String(a.id) }));
   return ids.length ? ids : [{ id: "1" }]; // Next exige al menos uno (el catálogo puede estar descargándose aún)
 }
 

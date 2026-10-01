@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Streamed } from "@/components/ui/Streamed";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { durLabel } from "@/lib/format";
+import { getInSpace } from "@/lib/data/space";
+import { When } from "@/components/ui/When";
 
 export const metadata: Metadata = { title: "Naves" };
 
@@ -23,8 +25,43 @@ export default function Page({ searchParams }: PageProps<"/naves">) {
 }
 
 async function Content({ searchParams }: Pick<PageProps<"/naves">, "searchParams">) {
-  const [{ items, groups }, sp] = await Promise.all([getSpacecraft(), searchParams]);
-  if (!items.length) return <Card><Empty>El catálogo de naves se está descargando de LL2 poco a poco (respetando su límite de peticiones). Vuelve en unas horas.</Empty></Card>;
+  const [{ items, groups }, sp, space] = await Promise.all([getSpacecraft(), searchParams, getInSpace()]);
+  // Acopladas ahora mismo a las estaciones (instantánea de "En el espacio")
+  const docked = (space?.stations ?? []).flatMap((st) => st.ports.filter((pt) => pt.vehicle).map((pt) => ({ vehicle: pt.vehicle!, port: pt.name, since: pt.since, img: pt.image, station: /international/i.test(st.name) ? "Estación Espacial Internacional" : st.name.replace(/ space station$/i, ""), image: st.imageUrl })));
+  const hero = docked.length > 0 && (
+    <section className="overflow-hidden rounded-lg border border-line bg-surface">
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
+        <h2 className="label flex items-center gap-2 !text-fg-muted"><span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-accent opacity-60" /><span className="relative inline-flex size-2 rounded-full bg-accent" /></span> Acopladas ahora · <span className="num !text-fg">{docked.length}</span></h2>
+        <Link href="/en-el-espacio" className="text-xs text-fg-muted hover:text-fg">Ver las estaciones →</Link>
+      </header>
+      <ul className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2 lg:grid-cols-4">
+        {docked.map((d) => {
+          const img = d.img ?? items.find((x) => x.inSpace && x.name === d.vehicle)?.image ?? d.image;
+          return (
+            <li key={d.vehicle + d.port} className="flex gap-3 bg-surface p-4">
+              <span className="size-14 shrink-0 overflow-hidden rounded-md bg-surface-3">
+                {img && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{d.vehicle}</span>
+                <span className="block truncate text-xs text-fg-muted">{d.station}</span>
+                <span className="block truncate text-[11px] text-fg-dim">{d.port}{d.since && <> · acoplada desde <When at={d.since} withTime={false} /></>}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+  if (!items.length) return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+      {hero}
+      <Card><Empty>El catálogo histórico de naves se está descargando de LL2 poco a poco (respetando su límite de peticiones). Vuelve en unas horas.</Empty></Card>
+    </div>
+  );
   const sel = Number(typeof sp.tipo === "string" ? sp.tipo : NaN);
   const group = groups.find((g) => g.id === sel) ?? null;
   const units = items
@@ -35,6 +72,7 @@ async function Content({ searchParams }: Pick<PageProps<"/naves">, "searchParams
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+      {hero}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
         <Kpi label="Unidades" value={items.length.toLocaleString("es")} hint={`${groups.length} modelos`} />
         <Kpi label="En el espacio ahora" value={now} />
