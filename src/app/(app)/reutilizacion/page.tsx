@@ -61,7 +61,6 @@ async function Content() {
       <section className="overflow-hidden rounded-lg border border-line bg-surface">
         <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <div className="relative border-b border-line p-5 md:p-7 lg:border-r lg:border-b-0">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_0%_0%,#ff5b1f14,transparent_55%)]" />
             {next ? (
               <div className="relative">
                 <p className="label flex items-center gap-1.5 !text-accent"><Recycle className="size-3.5" /> Próximo aterrizaje</p>
@@ -97,7 +96,7 @@ async function Content() {
 
       {/* Zonas de recuperación */}
       {d.zones.length > 0 && (
-        <section className="overflow-hidden rounded-lg border border-line bg-surface">
+        <section id="zonas" className="scroll-mt-20 overflow-hidden rounded-lg border border-line bg-surface">
           <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
             <h2 className="label !text-fg-muted">Dónde aterrizan</h2>
             <span className="text-xs text-fg-dim">Toca una zona en el mapa o en la lista</span>
@@ -114,18 +113,29 @@ async function Content() {
         <section>
           <h2 className="label mb-3 !text-fg-muted">Los propulsores más veteranos</h2>
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {d.leaders.slice(0, 10).map((b, i) => (
-              <li key={b.id} className={clsx("flex flex-col rounded-lg border bg-surface p-4", i === 0 ? "border-accent/50" : "border-line")}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="num text-xl font-semibold">{b.serial}</span>
-                  <span className="num text-xs text-fg-dim">#{i + 1}</span>
-                </div>
-                <p className="truncate text-xs text-fg-dim">{b.config ?? "—"} · {launcherStatus(b.status)}</p>
-                <div className="mt-3"><FlightDots n={b.flights} /></div>
-                <p className="mt-auto pt-3 text-xs text-fg-muted"><span className="num text-fg">{b.flights}</span> vuelos · <span className="num text-fg">{b.landings}</span>/{b.attempts} aterrizajes</p>
-                {b.last && <p className="text-[11px] text-fg-dim">Último: <When at={b.last} withTime={false} /></p>}
-              </li>
-            ))}
+            {d.leaders.slice(0, 10).map((b, i) => {
+              const body = (
+                <>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="num text-xl font-semibold">{b.serial}</span>
+                    <span className="num text-sm text-fg-muted">#{i + 1}</span>
+                  </div>
+                  <p className="truncate text-xs text-fg-dim">{b.config ?? "—"} · {launcherStatus(b.status)}</p>
+                  <div className="mt-3"><FlightDots n={b.flights} /></div>
+                  <p className="mt-auto pt-3 text-sm text-fg-muted"><span className="num text-base font-semibold text-fg">{b.flights}</span> vuelos · <span className="num text-base font-semibold text-fg">{b.landings}</span>/{b.attempts} aterrizajes</p>
+                  {b.last && <p className="text-[11px] text-fg-dim">Último: <When at={b.last} withTime={false} /></p>}
+                </>
+              );
+              const cls = "flex h-full flex-col rounded-lg border border-line bg-surface p-4";
+              return (
+                <li key={b.id}>
+                  {b.lastZone ? (
+                    // Lleva al mapa de zonas y selecciona dónde aterrizó por última vez
+                    <a href={`#zona-${b.lastZone}`} className={clsx(cls, "transition-colors hover:border-line-strong hover:bg-surface-2")} title="Ver en el mapa dónde aterrizó por última vez">{body}</a>
+                  ) : <div className={cls}>{body}</div>}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

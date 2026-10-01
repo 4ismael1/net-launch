@@ -219,6 +219,22 @@ export async function getReuse() {
     }
   }
   const zones = [...zoneMap.values()].filter((z) => z.attempts > 0).sort((a, b) => b.attempts - a.attempts).slice(0, 12);
+
+  // Última zona de aterrizaje de cada propulsor: catálogo de aterrizajes (id creciente = más reciente) y, encima,
+  // los lanzamientos recientes (más frescos que el catálogo semanal)
+  const zoneIds = new Set(zones.map((z) => z.id));
+  const byKey = new Map<string, number>();
+  for (const z of zones) { byKey.set(z.name, z.id); if (z.abbrev) byKey.set(z.abbrev, z.id); }
+  const lastZone = new Map<number, number>();
+  for (const l of [...landings].sort((x, y) => x.id - y.id)) {
+    const bid = l.firststage?.launcher?.id, zid = l.landing_location?.id;
+    if (bid && zid && l.attempt && zoneIds.has(zid)) lastZone.set(bid, zid);
+  }
+  for (const r of [...rows].reverse()) {
+    const zid = r.where ? byKey.get(r.where) : undefined;
+    if (r.launcherId && zid && r.success !== null) lastZone.set(r.launcherId, zid);
+  }
+  const leadersOut = leaders.map((x) => ({ ...x, lastZone: lastZone.get(x.id) ?? null }));
   const types = [...typeMap.values()].sort((a, b) => b.n - a.n);
   const totals = {
     boosters: boosters.length,
@@ -230,7 +246,7 @@ export async function getReuse() {
     maxSerial: leaders[0]?.serial ?? null,
     fastest: fastest[0] ?? null,
   };
-  return { totals, upcoming, recent, leaders, fastest, fleet, zones, types, hasCatalog: launchers.length > 0 };
+  return { totals, upcoming, recent, leaders: leadersOut, fastest, fleet, zones, types, hasCatalog: launchers.length > 0 };
 }
 
 // ───────────── Astronautas ─────────────

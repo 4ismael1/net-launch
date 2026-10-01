@@ -60,7 +60,7 @@ export function LandingZonesMap({ zones }: { zones: Zone[] }) {
       });
       mapRef.current = map;
       map.touchZoomRotate.disableRotation();
-      map.addControl(new AttributionControl({ compact: true }), "bottom-left");
+      map.addControl(new AttributionControl({ compact: true }), "bottom-right");
       map.on("style.load", () => {
         const m = map!;
         if (!KEY) neutralizeBasemap(m, OWN);
@@ -105,11 +105,28 @@ export function LandingZonesMap({ zones }: { zones: Zone[] }) {
     if (sel != null) listRef.current?.querySelector<HTMLElement>(`[data-zone="${sel}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [zones, sel]);
 
+  // Enlaces #zona-<id> (p. ej. desde las tarjetas de propulsores): selecciona la zona y desplaza hasta el mapa
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const go = () => {
+      const m = /^#zona-(\d+)$/.exec(location.hash);
+      if (!m) return;
+      const id = Number(m[1]);
+      if (!zonesRef.current.some((z) => z.id === id)) return;
+      setSel(id);
+      rootRef.current?.closest("section")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      history.replaceState(null, "", location.pathname + location.search); // un segundo clic en la misma tarjeta vuelve a funcionar
+    };
+    go();
+    window.addEventListener("hashchange", go);
+    return () => window.removeEventListener("hashchange", go);
+  }, []);
+
   const zoomBy = (d: number) => mapRef.current?.easeTo({ zoom: mapRef.current.getZoom() + d, duration: 250 });
   const selected = zones.find((z) => z.id === sel) ?? null;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+    <div ref={rootRef} className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <div className="relative flex min-h-[340px] flex-col border-b border-line lg:min-h-[440px] lg:border-r lg:border-b-0">
         {/* MapLibre impone position:relative al contenedor: la altura viene del flujo (flex-1) */}
         <div ref={el} className="min-h-[340px] w-full flex-1 bg-bg lg:min-h-[440px]" role="region" aria-label="Mapa interactivo de zonas de aterrizaje" />
@@ -119,7 +136,7 @@ export function LandingZonesMap({ zones }: { zones: Zone[] }) {
           <button type="button" onClick={() => { setSel(null); if (mapRef.current) fitAll(mapRef.current); }} className="grid size-8 place-items-center border-t border-line text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg" aria-label="Ver todas las zonas"><Maximize className="size-3.5" /></button>
         </div>
         {selected && (
-          <div key={selected.id} className="absolute right-3 bottom-3 left-3 animate-pop-in rounded-md border border-line-strong bg-surface-2/95 p-3 text-sm shadow-2xl backdrop-blur sm:right-auto sm:max-w-80">
+          <div key={selected.id} className="absolute right-12 bottom-3 left-3 animate-pop-in rounded-md border border-line-strong bg-surface-2/95 p-3 text-sm shadow-2xl backdrop-blur sm:right-auto sm:max-w-80">
             <p className="font-medium"><span className="text-accent">{selected.abbrev ?? selected.name}</span> {selected.abbrev && <span className="text-fg-muted">{selected.name}</span>}</p>
             {selected.place && <p className="mt-0.5 text-xs text-fg-dim">{selected.place}</p>}
             <p className="num mt-2 text-xs text-fg-muted">{selected.ok} aterrizajes logrados de {selected.attempts} intentos{selected.fail > 0 ? ` · ${selected.fail} ${selected.fail === 1 ? "fallido" : "fallidos"}` : ""}</p>
