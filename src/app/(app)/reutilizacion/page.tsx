@@ -8,7 +8,7 @@ import { Streamed } from "@/components/ui/Streamed";
 import { Card, CardHeader, Empty } from "@/components/ui/Card";
 import { When } from "@/components/ui/When";
 import { Ticker } from "@/components/ui/Ticker";
-import { WorldDots } from "@/components/map/WorldDots";
+import { LandingZonesMap } from "@/components/map/LandingZonesMap";
 
 export const metadata: Metadata = {
   title: "Reutilización y aterrizajes",
@@ -100,28 +100,12 @@ async function Content() {
         <section className="overflow-hidden rounded-lg border border-line bg-surface">
           <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
             <h2 className="label !text-fg-muted">Dónde aterrizan</h2>
-            <span className="text-xs text-fg-dim">Tamaño = intentos · en naranja, zonas usadas en próximos vuelos</span>
+            <span className="text-xs text-fg-dim">Toca una zona en el mapa o en la lista</span>
           </header>
-          <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <div className="border-b border-line bg-[#0e0e0d] lg:border-r lg:border-b-0">
-              <WorldDots dots={d.zones.filter((z) => z.lat != null && z.lng != null).map((z) => ({
-                lat: z.lat!, lon: z.lng!, r: 6 + Math.sqrt(z.attempts) * 2.2, label: z.abbrev ?? z.name,
-                title: `${z.name}: ${z.ok}/${z.attempts} aterrizajes`, accent: d.upcoming.some((u) => u.where === z.abbrev),
-              }))} />
-            </div>
-            <ul className="grid content-start gap-2.5 p-4">
-              {d.zones.slice(0, 9).map((z) => (
-                <li key={z.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm">
-                  <span className="truncate"><span className="font-medium">{z.abbrev ?? z.name}</span> <span className="text-xs text-fg-dim">{z.abbrev ? z.name : ""}</span></span>
-                  <span className="num text-xs text-fg-muted">{z.ok}/{z.attempts}</span>
-                  <span className="col-span-2 flex h-1.5 gap-[2px] overflow-hidden rounded-full">
-                    <span className="h-full rounded-l-full bg-fg-muted/70" style={{ width: `${(z.ok / z.attempts) * 100}%` }} />
-                    {z.attempts > z.ok && <span className="h-full rounded-r-full bg-failure" style={{ width: `${((z.attempts - z.ok) / z.attempts) * 100}%` }} />}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <LandingZonesMap zones={d.zones.map((z) => {
+            const next = d.upcoming.find((u) => u.where === z.abbrev || u.where === z.name);
+            return { ...z, next: next ? { slug: next.slug, name: next.name, net: next.net } : null };
+          })} />
         </section>
       )}
 
