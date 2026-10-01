@@ -6,6 +6,7 @@ import { Streamed } from "@/components/ui/Streamed";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { When } from "@/components/ui/When";
 import { ApproachChart } from "@/components/charts/ApproachChart";
+import { ApproachExplorer } from "@/components/space/ApproachExplorer";
 import { sizeLabel } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Asteroides cercanos" };
@@ -70,15 +71,12 @@ async function Content() {
         <Kpi label="El más rápido" value={fastest ? `${fastest.vRel.toLocaleString("es", { maximumFractionDigits: 1 })} km/s` : "—"} hint={fastest ? clean(fastest.name) : undefined} />
       </div>
 
-      <Card>
-        <CardHeader title="Distancia de paso" meta="Escala logarítmica · DL = distancia Tierra–Luna (384 400 km)" />
-        <div className="p-3"><ApproachChart rows={near} at={at} /></div>
-        <p className="border-t border-line px-4 py-2.5 text-[11px] text-fg-dim">Cada punto es un acercamiento; su tamaño refleja el diámetro estimado. Gris: ya pasó. Pasa el cursor (o toca) para ver el detalle.</p>
-      </Card>
+      <ApproachExplorer rows={near} at={at} />
 
       <Card>
-        <CardHeader title="Próximos acercamientos" />
-        {upcoming.length ? <Rows rows={upcoming} /> : <Empty>Sin acercamientos previstos en este rango.</Empty>}
+        <CardHeader title="Línea de tiempo" meta="Últimos 30 días y próximos 60 · escala logarítmica · DL = distancia Tierra–Luna (384 400 km)" />
+        <div className="p-3"><ApproachChart rows={near} at={at} /></div>
+        <p className="border-t border-line px-4 py-2.5 text-[11px] text-fg-dim">Cada punto es un acercamiento; su tamaño refleja el diámetro estimado. Gris: ya pasó.</p>
       </Card>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-2">
