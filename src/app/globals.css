@@ -162,3 +162,15 @@ body:has([data-fullbleed]) [data-app-footer] {
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* Portada: encaje NATIVO del navegador en cada sección (scroll libre, sin secuestrar la rueda) */
+html:has([data-landing]) {
+  scroll-snap-type: y mandatory;
+}
+[data-snap] {
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has([data-landing]) { scroll-snap-type: y proximity; }
+}
