@@ -1,34 +1,59 @@
 # PROGRESO
 
-## Estado actual
-- **Hecho:** F1–F10 + módulo Satélites. Build de producción OK (`npx next build`, ~10 s).
-- **Satélites** (`/satelites`): 19 grupos CelesTrak (estaciones, Starlink, OneWeb, Kuiper, GPS, Galileo, BeiDou, GLONASS, meteorológicos, NOAA, ciencia, CubeSats…), búsqueda en todo el catálogo, globo 3D de constelaciones (SGP4 cada 2 s), tabla filtrable, ficha por NORAD (posición en vivo, traza en el mapa, órbita 3D, elementos, SATCAT, enlace a su lanzamiento) y «¿cuándo pasa sobre mí?» (72 h, visibilidad a simple vista).
-- **Landing:** capítulos + progreso, hero que cabe en una pantalla, cinta de próximos, pilares de la tesis, recorrido fijado con paradas discretas y resaltado en el globo, encaje global del scroll (Lenis), galería de menos conocidos, pie completo.
-- **Siguiente paso exacto:** F11 → deploy en Vercel (el usuario crea la cuenta), respaldo del cron (el cron programado de GitHub aún no se dispara solo; el manual sí funciona), PostHog/Sentry, QA responsive/a11y, clave de MapTiler.
-- **Ojo:** importar SGP4 SIEMPRE desde `@/lib/sgp4` (el índice de satellite.js carga WASM y cuelga el build). Los contenedores de MapLibre necesitan la altura del flujo (MapLibre fuerza position:relative).
+> Leer esto al iniciar sesión. Última actualización: **2026-10-01**. Producción: **https://net-launch.vercel.app** (Vercel, región `cle1`).
+> Repo en `main` (todo subido). Build local: `npx next build` (~1 min). Typecheck: `npx tsc --noEmit -p .` · Lint: `npx eslint src`.
 
-## Hecho en F1
-- Next.js 16.3 + TS + Tailwind v4 (en la raíz). Ojo: leer `node_modules/next/dist/docs/` antes de usar APIs de Next (AGENTS.md).
-- Esquema Drizzle en `src/lib/db/schema.ts`: agencies, locations, pads, rocket_configs, launches, launch_videos, launch_links, sync_state, sync_runs. Aplicado en Neon (`npm run db:push`).
-- Cliente LL2 (`src/lib/ll2/client.ts`) con timeout, backoff y presupuesto; normalizador (`normalize.ts`) con tests (`npm test`).
-- `npm run sync` (`scripts/sync.ts`): carga inicial de próximos → incremental por `last_updated__gte` → catálogo semanal (agencias + pads) → backfill histórico ascendente. Probado con lldev: 518 lanzamientos, 350 agencias, 223 pads.
-- `.github/workflows/sync.yml`: cron cada 15 min.
-- `.env.local` (no se sube) / `.env.example`.
+## 1. Estado general
+Plataforma completa y desplegada. Proyecto académico de **Ana Isabel Ruiz Gómez y Yeslei Vannesa Mora Gómez** (Ing. Aeronáutica, UPB; curso Metodología de la Investigación, prof. Carolina Buitrago Arias). Crédito técnico discreto en `/acerca` y pie: *Desarrollo de software: Ing. Ismael Paulino* (no debe restar protagonismo a las autoras).
 
-## Pendientes del usuario
-- [ ] Rotar la contraseña de Neon (quedó escrita en el chat) y actualizar `.env.local` y el secret
-- [ ] Cuentas futuras: MapTiler (satélite; poner `NEXT_PUBLIC_MAPTILER_KEY`), NASA API, PostHog, Sentry, Vercel (deploy)
-- [x] Gemini (clave en .env.local y en el secret de GitHub)
-- [x] OpenSky (cuenta gratuita; OPENSKY_CLIENT_ID/SECRET en .env.local y en Vercel). Rotar el secreto (quedó escrito en el chat)
+### Secciones (menú en `src/components/shell/nav.ts`)
+| Grupo | Rutas |
+|---|---|
+| Portada | `/` landing 3D con scroll nativo + `scroll-snap` (sin barra de progreso ni puntos laterales: el usuario no los quiere) |
+| Explorar | `/panel`, `/mapa`, `/lanzamientos` (+`[slug]`), `/eventos`, `/en-el-espacio`, `/satelites` (+`[norad]`), `/orbita/[slug]` |
+| Datos | `/organizaciones` (+`[id]`), `/bases` (+`[id]`), `/vehiculos` (+`[id]`), `/programas` (+`[id]`), `/reutilizacion`, `/estadisticas` |
+| Universo | `/esta-noche`, `/mas-alla`, `/asteroides`, `/poblacion-orbital`, `/astronautas` (+`[id]`), `/naves`, `/imagen-del-dia` |
+| Información | `/noticias`, `/metodologia`, `/acerca` |
 
-## Bitácora
-- 2026-09-30 — F0: plan y verificación de APIs.
-- 2026-09-30 — F1: base de datos + sincronizador funcionando con lldev.
-- 2026-09-30 — F2–F6: interfaz completa navegable con datos reales; traducciones Gemini funcionando (150 textos → 418 misiones).
-- 2026-10-01 — Nuevos módulos: Programas, Reutilización, Astronautas, Naves (catálogos LL2 por páginas con cursor y reserva de 6 peticiones/h para lo urgente),
-  Población orbital (SATCAT semanal), Asteroides (JPL CAD), Más allá de la órbita (JPL Horizons cada 6 h, interpolado), Imagen del día (APOD traducida),
-  Esta noche (astronomy-engine + SGP4 en el navegador).
-  Tráfico aéreo: retirado por decisión del usuario (queda en el historial de git, commit 83b4f3c, por si se retoma).
-  Textos en español: tabla `translations` (md5 → es) + resúmenes de Wikipedia ES. Corregidos: scroll bloqueado (Next conserva páginas ocultas → `HtmlFlag`),
-  "Ver en el mapa", pausa de los globos (preferencia compartida `net-globe-paused`).
-  Notas: con Cache Components las páginas visitadas quedan montadas y ocultas (React Activity): nada de selectores `:has()` globales ni estado inicializado solo en el montaje.
+### Fuentes de datos
+- **LL2 2.3.0** (principal): solo vía BD (Neon + Drizzle). Límite 15 req/h → nos auto-limitamos a **14/h** (ventana deslizante en `sync_state` clave `ll2_request_log:<host>`), con **reserva de 6/h** para lo urgente (`LL2_RESERVE`).
+- **CelesTrak** GP (satélites, caché 3 h) y **SATCAT** (resumen semanal guardado en `sync_state.satcat`).
+- **JPL Horizons** (sondas, efemérides cada 6 h × 4 días, interpoladas en el navegador; caché 12 h; de 2 en 2 con reintento) y **JPL CAD** (asteroides, caché 3 h).
+- **NASA APOD**: la API de api.nasa.gov está rota (devuelve el logotipo) → se lee el **RSS oficial** `https://science.nasa.gov/feed/apod-basic/` (30 días).
+- **Open-Meteo** (clima), **Spaceflight News API** (noticias), **Wikipedia ES** (resúmenes vía langlinks; fallos con caché corta), **astronomy-engine** (Sol/Luna/planetas en el navegador), **OpenFreeMap** (mapa base; MapTiler opcional con `NEXT_PUBLIC_MAPTILER_KEY`).
+- **Gemini** `gemini-flash-lite-latest` para traducir EN→ES; tabla `translations` (md5 → es). `ensureEs` traduce al vuelo solo contenidos diarios (APOD).
+
+### Sincronización (`src/lib/sync/run.ts`, `runSync`)
+Disparadores: (1) autosync en `/api/live` vía `after()` si los datos tienen >15 min y como mucho 1 intento cada 10 min; (2) cron de Vercel diario `0 6 * * *` (`/api/cron/sync`, Bearer `CRON_SECRET`); (3) GitHub Actions cada 15 min (el **programado aún no se dispara solo**; el manual sí). Candado en BD (`sync_lock`).
+Orden: próximos (detailed) / incremental `last_updated__gte` → instantáneas cada 3 h (eventos, astronautas en el espacio, estaciones, expediciones + **últimos 25 lanzamientos en detailed**) → catálogo semanal (agencias, plataformas) → **catálogos LL2 por páginas** (`catalog_jobs`: programs, launchers, landings, spacecraft, astronauts; tabla `catalog`) → histórico descendente (`backfill_desc`, mode normal) → SATCAT semanal → traducciones. Revalida `ll2` si cambian lanzamientos **o** catálogos.
+Estado al cerrar: catálogo con programs 39, launchers 196, landings ~100 (sigue); **faltan spacecraft y astronauts** (llegan solos en las próximas horas). Histórico ~4.850 lanzamientos (offset ~4100, sigue).
+
+## 2. Lecciones técnicas (no repetir errores)
+- **Next 16 con `cacheComponents`**: leer `node_modules/next/dist/docs/` antes de usar APIs. `new Date()`/`Date.now()` no se pueden usar en render prerenderizado (usar datos o `"use cache"`); `generateStaticParams` debe devolver ≥1 elemento; tras crear rutas, `npx next typegen` (si `.next/dev/types` se corrompe, borrarlo).
+- **Las páginas visitadas quedan montadas y ocultas (React Activity)**: nada de selectores globales `:has([data-x])` → usar `<HtmlFlag name="…">` (marca `<html data-…>` con efecto). No inicializar estado solo al montar si depende de la URL (ver `WorldMap`: ajuste en render con `seenUrl`).
+- `"use cache"` cachea también los `null` de fallos → para APIs externas, `cacheLife` corto cuando falla (ver `wikiEs`, `getProbes`).
+- No exportar funciones/constantes desde archivos `"use client"` para usarlas en el servidor (llegan como referencias de cliente) → helpers en `src/lib/format.ts` o módulos planos.
+- En plantillas de `RegExp` con backticks escribir `\\s\\S` (sin doble barra se pierden). Al editar con Python vía heredoc se rompen `\n` y `\s`: usar archivos `.py` en el scratchpad o la herramienta Edit.
+- SVG renderizado en servidor y cliente: redondear coordenadas (`q()` a 2 decimales) para evitar avisos de hidratación.
+- SGP4: importar **siempre** de `@/lib/sgp4` (el índice de satellite.js carga WASM y cuelga el build).
+- MapLibre: el contenedor necesita altura del flujo (fuerza `position:relative`; nada de `absolute inset-0` en el div del mapa). Worker copiado a `/public/maplibre` (postinstall) + `setWorkerUrl`.
+- LL2 2.3.0: naves acopladas en `docking_location[].currently_docked.flight_vehicle_chaser.spacecraft`; Starman es `type: Non-Human` (se excluye de personas).
+- Pausa de los globos: preferencia compartida en localStorage `net-globe-paused` (`GLOBE_PAUSED` en `orbit/earth.ts`); `orbitControls` la escucha.
+- Zoom en SVG: componente `src/components/ui/ZoomPan.tsx` (Ctrl/⌘+rueda, pellizco, doble clic, arrastre; `children(k)` para tamaños constantes).
+- En el panel del navegador de pruebas: rAF limitado si está oculto; esperar ~15 s tras editar antes de probar; dividir pruebas JS (<45 s).
+
+## 3. Estética y criterios del usuario
+Grafito cálido (`#0B0B0A`, acento `#FF5B1F`), **sin azul/morado "de IA"**. Todo adaptable a cualquier pantalla, nada cortado. Transiciones fluidas, sensación premium; optimizar sin empeorar la experiencia. Scroll nativo sin bloqueos ni animaciones con retraso. Datos lo más en tiempo real posible dentro de los límites. Respuestas breves y ahorro de tokens.
+
+## 4. Pendientes
+- [ ] **Usuario:** rotar contraseña de Neon y el secreto de OpenSky (quedaron en el chat). Las variables de OpenSky ya no se usan (módulo retirado); se pueden borrar de Vercel.
+- [ ] Cron programado de GitHub Actions que no se dispara solo (cubierto por autosync + cron diario de Vercel).
+- [ ] Revisar `/astronautas` y `/naves` cuando lleguen sus catálogos (diseño ya preparado: récords, explorador, modelos).
+- [ ] Ideas no hechas: PostHog/Sentry, clave MapTiler (satélite), i18n inglés, QA a11y completa.
+- [ ] Documento de investigación de las autoras: verificar citas sospechosas (Johnson 2023, Pérez-González & Ramírez 2021, Newman 2022, Restrepo & Gómez 2023, Agrawal & Gupta 2022), cambiar "telemetría en tiempo real", mencionar MapLibre, distinguir latencia del servidor y frescura del dato.
+- Tráfico aéreo: **retirado** por decisión del usuario (código en el commit `83b4f3c`: OpenSky global + adsb.lol por zona).
+
+## 5. Bitácora
+- 2026-09-30 — F0–F10: plan, BD + sync, interfaz completa, landing 3D, satélites, despliegue en Vercel.
+- 2026-10-01 — Programas, Reutilización, categoría Universo, catálogos LL2, SATCAT, traducciones genéricas, Wikipedia ES; correcciones de scroll bloqueado, "Ver en el mapa", pausa de globos.
+- 2026-10-01 — Pulido: APOD desde RSS oficial, radar de asteroides a escala con comparación de tamaño, pasos de satélites dibujados en la cúpula, sondas con foto y escalera de distancias, corte a escala de la población orbital, mapa de zonas de aterrizaje, cronología de programas, "ahora en el espacio" y naves acopladas; zoom en las tres visualizaciones.
