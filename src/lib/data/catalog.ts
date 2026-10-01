@@ -58,6 +58,8 @@ export type Program = {
 const PROGRAM_TYPE: Record<string, string> = {
   "Human Spaceflight": "Vuelo tripulado", "Robotic Exploration": "Exploración robótica", "Robotic": "Robótico", "Navigation": "Navegación",
   "Communications": "Comunicaciones", "Earth Science": "Ciencias de la Tierra", "Science": "Ciencia", "Lunar": "Lunar", "Constellation": "Constelación",
+  "Navigation Constellation": "Constelación de navegación", "Communication Constellation": "Constelación de comunicaciones", "Technology": "Tecnología",
+  "Exploration": "Exploración", "Earth Observation": "Observación de la Tierra",
 };
 export const programType = (t: string | null) => (t ? PROGRAM_TYPE[t] ?? t : null);
 
