@@ -56,7 +56,8 @@ Grafito cálido (`#0B0B0A`, acento `#FF5B1F`), **sin azul/morado "de IA"**. Todo
 ## 4. Pendientes
 - [ ] **Usuario:** rotar contraseña de Neon y el secreto de OpenSky (quedaron en el chat). Las variables de OpenSky ya no se usan (módulo retirado); se pueden borrar de Vercel.
 - [ ] Cron programado de GitHub Actions que no se dispara solo (cubierto por autosync + cron diario de Vercel).
-- [ ] Revisar `/astronautas` y `/naves` cuando lleguen sus catálogos (diseño ya preparado: récords, explorador, modelos).
+- [ ] Revisar `/astronautas` y `/naves` cuando lleguen sus catálogos (diseño ya preparado). Cola de catálogos: programas → propulsores → **astronautas → naves** → aterrizajes (estado 2026-10-01: aterrizajes 500, offset guardado). Los textos públicos nunca mencionan la sincronización ("disponible próximamente").
+- Rueda del ratón: zoom directo en globos, sistema solar, radar y mapas (sin Ctrl); alejado del todo, la rueda desplaza la página (decisión del usuario).
 - [ ] Ideas no hechas: PostHog/Sentry, clave MapTiler (satélite), i18n inglés, QA a11y completa.
 - [ ] Documento de investigación de las autoras: verificar citas sospechosas (Johnson 2023, Pérez-González & Ramírez 2021, Newman 2022, Restrepo & Gómez 2023, Agrawal & Gupta 2022), cambiar "telemetría en tiempo real", mencionar MapLibre, distinguir latencia del servidor y frescura del dato.
 - Tráfico aéreo: **retirado** por decisión del usuario (código en el commit `83b4f3c`: OpenSky global + adsb.lol por zona).
