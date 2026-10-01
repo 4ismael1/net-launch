@@ -126,27 +126,64 @@ export async function getApproaches() {
 }
 
 // ───────────── Imagen astronómica del día (NASA APOD) ─────────────
+// APOD se mudó a science.nasa.gov y la API de api.nasa.gov quedó devolviendo el logotipo de la NASA como imagen.
+// Fuente: el feed RSS oficial "APOD Basic" (últimos 30 días, con imagen, explicación y créditos).
 
-export type Apod = { date: string; title: string; titleEs: string | null; explanation: string; explanationEs: string | null; url: string; hdurl?: string; media: string; thumb?: string; copyright?: string };
+export type Apod = {
+  date: string; title: string; titleEs: string | null; explanation: string; explanationEs: string | null;
+  image: string; thumb: string; hdurl: string; page: string; video: string | null; credit: string | null; alt: string | null;
+};
+
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const tag = (it: string, t: string) => it.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`))?.[1]?.replace(/^<!\[CDATA\[|\]\]>$/g, "").trim() ?? null;
+const text = (h: string | null) =>
+  h ? h.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&#0?38;|&amp;/g, "&").replace(/&#8217;|&rsquo;/g, "’").replace(/&quot;|&#8220;|&#8221;/g, "\"").replace(/&nbsp;/g, " ").replace(/[ \t]+/g, " ").trim() : null;
+// Las imágenes de assets.science.nasa.gov admiten redimensionado por parámetros
+const sized = (u: string, w: number, h?: number) => {
+  try {
+    const x = new URL(u.replace(/&#0?38;/g, "&"));
+    x.searchParams.set("w", String(w));
+    if (h) { x.searchParams.set("h", String(h)); x.searchParams.set("fit", "crop"); } else { x.searchParams.delete("h"); x.searchParams.set("fit", "clip"); }
+    return x.toString();
+  } catch { return u; }
+};
 
 export async function getApod() {
   "use cache";
-  cacheLife({ stale: 600, revalidate: 3600, expire: 86400 * 2 });
-  const key = process.env.NASA_API_KEY || "DEMO_KEY";
-  const start = new Date(Date.now() - 11 * 864e5).toISOString().slice(0, 10);
+  cacheLife({ stale: 600, revalidate: 1800, expire: 86400 * 2 });
   try {
-    const r = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${key}&thumbs=true&start_date=${start}`, { signal: AbortSignal.timeout(15_000) });
+    const r = await fetch("https://science.nasa.gov/feed/apod-basic/", { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "Mozilla/5.0 (NET-plataforma-universitaria)" } });
     if (!r.ok) return null;
-    const list = ((await r.json()) as { date: string; title: string; explanation: string; url: string; hdurl?: string; media_type: string; thumbnail_url?: string; copyright?: string }[])
-      .filter((x) => x.url)
-      .sort((a, b) => b.date.localeCompare(a.date));
-    // Traducción (una vez por texto, guardada en la BD): título y explicación de hoy + títulos del resto
-    const es = await ensureEs([list[0]?.title, list[0]?.explanation, ...list.slice(1).map((x) => x.title)]);
-    return list.map<Apod>((x) => ({
-      date: x.date, title: x.title, titleEs: es[x.title] ?? null, explanation: x.explanation, explanationEs: es[x.explanation] ?? null,
-      url: x.url, hdurl: x.hdurl, media: x.media_type, thumb: x.thumbnail_url, copyright: x.copyright?.replace(/\s+/g, " ").trim(),
-    }));
+    const xml = await r.text();
+    const list: Apod[] = [];
+    for (const it of xml.split("<item>").slice(1)) {
+      const link = tag(it, "link") ?? "";
+      const m = link.match(/apod-(\d{4})-([a-z]+)-(\d{1,2})/);
+      const date = m ? `${m[1]}-${String(MONTHS.indexOf(m[2]) + 1).padStart(2, "0")}-${m[3].padStart(2, "0")}` : new Date(tag(it, "pubDate") ?? Date.now()).toISOString().slice(0, 10);
+      const hd = (tag(it, "apod:hdurl") ?? "").replace(/&#0?38;/g, "&");
+      const isVideo = /youtube|youtu\.be|vimeo|\.mp4/i.test(hd);
+      // Explicación sin el prefijo "Explanation:" ni los avisos que APOD añade al final
+      const expl = (text(tag(it, "apod:explanation")) ?? "").replace(/^Explanation:\s*/i, "").split(/\n\s*\n/)[0].trim();
+      if (!hd || !expl) continue;
+      list.push({
+        date, title: text(tag(it, "title")) ?? "APOD", titleEs: null, explanation: expl, explanationEs: null,
+        image: isVideo ? "" : sized(hd, 1800), thumb: isVideo ? "" : sized(hd, 480, 360), hdurl: hd, page: link, video: isVideo ? hd : null,
+        credit: text(tag(it, "apod:copyright")) || text(tag(it, "apod:credit")), alt: text(tag(it, "apod:alt")),
+      });
+    }
+    list.sort((a, b) => b.date.localeCompare(a.date));
+    const recent = list.slice(0, 14);
+    // Traducción guardada en la BD (una vez por texto): títulos de todos + explicaciones de los 3 más recientes
+    const es = await ensureEs([...recent.map((x) => x.title), ...recent.slice(0, 3).map((x) => x.explanation)]);
+    return recent.map((x) => ({ ...x, titleEs: es[x.title] ?? null, explanationEs: es[x.explanation] ?? null }));
   } catch {
     return null;
   }
+}
+
+/** Traducción de la explicación de un día concreto (al abrirlo desde la galería). */
+export async function apodExplanationEs(text: string) {
+  "use cache";
+  cacheLife("weeks");
+  return (await ensureEs([text]))[text] ?? null;
 }
