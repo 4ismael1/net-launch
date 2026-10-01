@@ -14,12 +14,13 @@ export function ApproachChart({ rows, at }: { rows: Approach[]; at: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const t0 = at - 30 * 864e5, t1 = at + 60 * 864e5;
   const lo = 0.1, hi = Math.max(20, ...rows.map((r) => r.distLd));
-  const x = (t: number) => PL + ((t - t0) / (t1 - t0)) * (W - PL - PR);
-  const y = (ld: number) => PT + (1 - (Math.log10(Math.max(lo, ld)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) * (H - PT - PB);
+  const q = (n: number) => Math.round(n * 100) / 100;
+  const x = (t: number) => q(PL + ((t - t0) / (t1 - t0)) * (W - PL - PR));
+  const y = (ld: number) => q(PT + (1 - (Math.log10(Math.max(lo, ld)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) * (H - PT - PB));
   const pts = useMemo(
     () => rows.map((r, i) => {
       const d = r.diamKnown ?? (r.diam ? Math.sqrt(r.diam[0] * r.diam[1]) : 20);
-      return { i, r, t: Date.parse(r.date), rad: Math.max(3, Math.min(14, 2 + Math.log10(Math.max(1, d)) * 3.2)) };
+      return { i, r, t: Date.parse(r.date), rad: Math.round(Math.max(3, Math.min(14, 2 + Math.log10(Math.max(1, d)) * 3.2)) * 100) / 100 };
     }).sort((a, b) => b.rad - a.rad),
     [rows],
   );

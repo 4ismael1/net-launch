@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { ExternalLink } from "lucide-react";
 import type { Approach } from "@/lib/data/universe";
 import { useNow } from "@/lib/hooks/client";
+import { ZoomPan } from "@/components/ui/ZoomPan";
 import { relativeTime, sizeLabel, splitCountdown } from "@/lib/format";
 
 const LD_KM = 384_400;
@@ -39,10 +40,11 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
   const S = 560, C = S / 2, R = 248;
   const maxLD = near ? 2 : Math.max(5, Math.ceil(Math.max(...upcoming.map((r) => r.distLd)) / 5) * 5);
   const rings = near ? [0.5, 1, 1.5, 2] : Array.from({ length: maxLD / 5 }, (_, i) => (i + 1) * 5);
-  const rr = (v: number) => (Math.min(v, maxLD) / maxLD) * R;
+  const q = (n: number) => Math.round(n * 100) / 100; // 2 decimales: mismo SVG en servidor y navegador
+  const rr = (v: number) => q((Math.min(v, maxLD) / maxLD) * R);
   const ang = (t: number) => (((t - at) / (60 * 864e5)) * 360 - 90) * (Math.PI / 180);
-  const xy = (r: Approach) => { const a = ang(Date.parse(r.date)), d = rr(r.distLd); return [C + d * Math.cos(a), C + d * Math.sin(a)] as const; };
-  const dotR = (r: Approach) => { const m = mid(r) ?? 20; return Math.max(3, Math.min(11, 1.5 + Math.log10(Math.max(1, m)) * 3)); };
+  const xy = (r: Approach) => { const a = ang(Date.parse(r.date)), d = rr(r.distLd); return [q(C + d * Math.cos(a)), q(C + d * Math.sin(a))] as const; };
+  const dotR = (r: Approach) => { const m = mid(r) ?? 20; return q(Math.max(3, Math.min(11, 1.5 + Math.log10(Math.max(1, m)) * 3))); };
 
   const ms = Date.parse(cur.date) - now;
   const cd = splitCountdown(ms);
@@ -61,55 +63,65 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
             ))}
           </div>
         </header>
-        <svg viewBox={`0 0 ${S} ${S}`} className="mx-auto block w-full max-w-[600px] select-none" role="img" aria-label="Radar: distancia real de cada acercamiento a la Tierra">
-          <defs>
-            <radialGradient id="ast-bg"><stop offset="0" stopColor="#1a1916" /><stop offset="1" stopColor="#121211" /></radialGradient>
-          </defs>
-          <circle cx={C} cy={C} r={R} fill="url(#ast-bg)" stroke="var(--color-line-strong)" />
-          {/* Marcas de tiempo */}
-          {[0, 15, 30, 45].map((d) => {
-            const a = ((d / 60) * 360 - 90) * (Math.PI / 180);
+        <ZoomPan w={S} h={S} maxZoom={60} label="Radar: distancia real de cada acercamiento a la Tierra" className="mx-auto max-w-[600px]">
+          {(k) => {
+            const t = (px: number) => px / k; // tamaño constante en pantalla
+            // Anillos de distancia que se adaptan al zoom (más finos al acercarse)
+            const span = maxLD / k;
+            const step = [0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10].find((x) => span / x <= 5) ?? 10;
+            const zr = Array.from({ length: Math.floor(maxLD / step) }, (_, i) => +(step * (i + 1)).toFixed(3));
             return (
-              <g key={d}>
-                <line x1={C} y1={C} x2={C + R * Math.cos(a)} y2={C + R * Math.sin(a)} stroke="var(--color-line)" strokeDasharray="2 5" />
-                <text x={C + (R + 14) * Math.cos(a)} y={C + (R + 14) * Math.sin(a) + 4} textAnchor="middle" fontSize={11} fill="var(--color-fg-dim)">{d === 0 ? "Hoy" : `+${d} d`}</text>
-              </g>
+              <>
+                <defs>
+                  <radialGradient id="ast-bg"><stop offset="0" stopColor="#1a1916" /><stop offset="1" stopColor="#121211" /></radialGradient>
+                </defs>
+                <circle cx={C} cy={C} r={R} fill="url(#ast-bg)" stroke="var(--color-line-strong)" strokeWidth={t(1)} />
+                {[0, 15, 30, 45].map((d) => {
+                  const a = ((d / 60) * 360 - 90) * (Math.PI / 180);
+                  return (
+                    <g key={d}>
+                      <line x1={C} y1={C} x2={C + R * Math.cos(a)} y2={C + R * Math.sin(a)} stroke="var(--color-line)" strokeWidth={t(1)} strokeDasharray={`${t(2)} ${t(5)}`} />
+                      <text x={C + (R + 14) * Math.cos(a)} y={C + (R + 14) * Math.sin(a) + 4} textAnchor="middle" fontSize={11} fill="var(--color-fg-dim)" opacity={k > 1.5 ? 0 : 1}>{d === 0 ? "Hoy" : `+${d} d`}</text>
+                    </g>
+                  );
+                })}
+                {(k > 1.2 ? zr : rings).map((v) => (
+                  <g key={v}>
+                    <circle cx={C} cy={C} r={rr(v)} fill="none" stroke="var(--color-line)" strokeWidth={t(1)} strokeDasharray={v === 1 ? undefined : `${t(3)} ${t(5)}`} />
+                    {v !== 1 && <text x={C + t(4)} y={C - rr(v) - t(4)} fontSize={t(10)} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{ld(v)} DL</text>}
+                  </g>
+                ))}
+                {/* Órbita de la Luna (1 DL) y geoestacionaria */}
+                <circle cx={C} cy={C} r={rr(1)} fill="none" stroke="#ecebe6" strokeOpacity={0.55} strokeWidth={t(1.2)} />
+                <circle cx={C + rr(1)} cy={C} r={Math.max(t(near ? 5 : 3.5), rr(1737 / LD_KM))} fill="#ecebe6" />
+                <text x={C + rr(1) + t(8)} y={C + t(4)} fontSize={t(11)} fill="var(--color-fg)">Luna</text>
+                {(near || k > 4) && (
+                  <>
+                    <circle cx={C} cy={C} r={rr(GEO_LD)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.5} strokeWidth={t(1)} strokeDasharray={`${t(2)} ${t(3)}`} />
+                    <text x={C} y={C + rr(GEO_LD) + t(13)} textAnchor="middle" fontSize={t(9.5)} fill="var(--color-accent)">satélites geoestacionarios</text>
+                  </>
+                )}
+                <circle cx={C} cy={C} r={Math.max(t(near ? 6 : 4.5), rr(EARTH_LD))} fill="#7fa3c0" />
+                <text x={C} y={C - Math.max(t(10), rr(EARTH_LD) + t(5))} textAnchor="middle" fontSize={t(11)} fill="var(--color-fg)">Tierra</text>
+                {upcoming.filter((r) => !near || r.distLd <= 2).map((r) => {
+                  const [x, y] = xy(r);
+                  const on = r === cur;
+                  const inside = r.distLd < 1;
+                  return (
+                    <g key={r.des + r.date} className="cursor-pointer" onClick={() => setSel(r.des + r.date)}>
+                      <circle cx={x} cy={y} r={t(14)} fill="transparent" />
+                      {on && <line x1={C} y1={C} x2={x} y2={y} stroke="var(--color-accent)" strokeOpacity={0.6} strokeWidth={t(1)} strokeDasharray={`${t(3)} ${t(3)}`} />}
+                      <circle cx={x} cy={y} r={t(dotR(r))} fill={inside ? "var(--color-accent)" : "#d8d5cc"} fillOpacity={on ? 1 : 0.8} stroke={on ? "#fff" : "var(--color-surface)"} strokeWidth={t(on ? 2 : 1.5)} />
+                      {(on || k > 2.5) && <text x={x + t(dotR(r) + 5)} y={y + t(3.5)} fontSize={t(10.5)} fill={on ? "var(--color-fg)" : "var(--color-fg-muted)"}>{clean(r.name)}</text>}
+                    </g>
+                  );
+                })}
+              </>
             );
-          })}
-          {rings.map((v) => (
-            <g key={v}>
-              <circle cx={C} cy={C} r={rr(v)} fill="none" stroke="var(--color-line)" strokeDasharray={v === 1 ? undefined : "3 5"} />
-              {v !== 1 && <text x={C + 4} y={C - rr(v) - 4} fontSize={10} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{ld(v)} DL</text>}
-            </g>
-          ))}
-          {/* Órbita de la Luna (1 DL) y geoestacionaria */}
-          <circle cx={C} cy={C} r={rr(1)} fill="none" stroke="#ecebe6" strokeOpacity={0.55} strokeWidth={1.2} />
-          <circle cx={C + rr(1)} cy={C} r={near ? 5 : 3.5} fill="#ecebe6" />
-          <text x={C + rr(1) + 8} y={C + 4} fontSize={11} fill="var(--color-fg)">Luna</text>
-          {near && (
-            <>
-              <circle cx={C} cy={C} r={rr(GEO_LD)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.5} strokeDasharray="2 3" />
-              <text x={C} y={C + rr(GEO_LD) + 13} textAnchor="middle" fontSize={9.5} fill="var(--color-accent)">satélites geoestacionarios</text>
-            </>
-          )}
-          <circle cx={C} cy={C} r={Math.max(near ? 6 : 4.5, rr(EARTH_LD))} fill="#7fa3c0" />
-          <text x={C} y={C - 10} textAnchor="middle" fontSize={11} fill="var(--color-fg)">Tierra</text>
-          {/* Asteroides */}
-          {upcoming.filter((r) => !near || r.distLd <= 2).map((r) => {
-            const [x, y] = xy(r);
-            const on = r === cur;
-            const inside = r.distLd < 1;
-            return (
-              <g key={r.des + r.date} className="cursor-pointer" onClick={() => setSel(r.des + r.date)} onMouseEnter={() => setSel(r.des + r.date)}>
-                <circle cx={x} cy={y} r={14} fill="transparent" />
-                {on && <line x1={C} y1={C} x2={x} y2={y} stroke="var(--color-accent)" strokeOpacity={0.6} strokeDasharray="3 3" />}
-                <circle cx={x} cy={y} r={dotR(r)} fill={inside ? "var(--color-accent)" : "#d8d5cc"} fillOpacity={on ? 1 : 0.8} stroke={on ? "#fff" : "var(--color-surface)"} strokeWidth={on ? 2 : 1.5} />
-              </g>
-            );
-          })}
-        </svg>
+          }}
+        </ZoomPan>
         <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-4 py-2.5 text-[11px] text-fg-muted">
-          <span>La <span className="text-fg">distancia al centro es real</span> (escala lineal); el ángulo indica <span className="text-fg">cuándo</span> pasa.</span>
+          <span>La <span className="text-fg">distancia al centro es real</span> (escala lineal); el ángulo indica <span className="text-fg">cuándo</span> pasa. Acerca con Ctrl/⌘ + rueda, pellizco o doble clic.</span>
           <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-accent" /> Más cerca que la Luna</span>
           <span>Tamaño del punto ~ diámetro estimado</span>
         </div>

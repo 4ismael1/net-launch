@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import clsx from "clsx";
 import { Body, HelioVector, RotateVector, Rotation_EQJ_ECL } from "astronomy-engine";
 import { useNow } from "@/lib/hooks/client";
+import { ZoomPan } from "@/components/ui/ZoomPan";
 import type { Sample } from "@/lib/data/universe";
 
 type Probe = { id: number; name: string; agency: string; launched: string; note: string; s: Sample[] };
@@ -13,7 +14,8 @@ const C_KM_S = 299_792.458;
 const S = 800, C = S / 2;
 // Escala radial logarítmica: 0 → centro, 0,1 ua → 35 px, 1 ua → 120 px, 30 ua → 285 px, 170 ua → 370 px
 const K = 115;
-const R = (au: number) => K * Math.log10(1 + au / 0.1);
+const q = (n: number) => Math.round(n * 100) / 100; // 2 decimales: servidor y navegador dan el mismo SVG
+const R = (au: number) => q(K * Math.log10(1 + au / 0.1));
 
 const PLANETS: { b: Body; name: string; a: number; size: number }[] = [
   { b: Body.Mercury, name: "Mercurio", a: 0.387, size: 2.5 }, { b: Body.Venus, name: "Venus", a: 0.723, size: 3.5 },
@@ -78,62 +80,70 @@ export function ProbesView({ probes, earth, at: serverAt, info }: { probes: Prob
   });
   const cur = rows.find((r) => r.id === sel) ?? rows[0];
 
-  // Etiquetas sin solaparse: se colocan de fuera hacia dentro y se omiten las que chocan (la elegida siempre)
-  const placed: { x: number; y: number; w: number }[] = [];
   const pt = (x: number, y: number, z: number) => {
     const r = Math.hypot(x, y, z), ang = Math.atan2(y, x), rr = R(r);
-    return [C + rr * Math.cos(ang), C - rr * Math.sin(ang)] as const;
+    return [q(C + rr * Math.cos(ang)), q(C - rr * Math.sin(ang))] as const;
   };
-  const labels = [...rows].sort((a, b) => Number(b.id === sel) - Number(a.id === sel) || b.sun - a.sun).map((r) => {
-    const [x, y] = pt(r.pos[0] / AU, r.pos[1] / AU, r.pos[2] / AU);
-    const w = r.name.length * 6.2 + 8;
-    const free = !placed.some((p) => Math.abs(p.y - y) < 14 && x + w > p.x && x < p.x + p.w);
-    if (free || r.id === sel) placed.push({ x, y, w });
-    return { id: r.id, x, y, show: free || r.id === sel };
-  });
 
   if (!cur) return null;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <section className="overflow-hidden rounded-lg border border-line bg-surface">
-        <svg viewBox={`0 0 ${S} ${S}`} className="mx-auto block w-full max-w-[720px] select-none" role="img" aria-label="Sistema solar visto desde arriba, escala logarítmica, con la posición actual de las sondas">
-          <defs>
-            <radialGradient id="sun"><stop offset="0" stopColor="#ffd9a0" /><stop offset="0.5" stopColor="#ff9a3d" stopOpacity="0.6" /><stop offset="1" stopColor="#ff5b1f" stopOpacity="0" /></radialGradient>
-          </defs>
-          {/* Cinturón de Kuiper y heliopausa */}
-          <circle cx={C} cy={C} r={(R(30) + R(50)) / 2} fill="none" stroke="#ecebe60a" strokeWidth={R(50) - R(30)} />
-          <circle cx={C} cy={C} r={R(120)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.35} strokeDasharray="3 6" />
-          <text x={C} y={C - R(120) - 6} textAnchor="middle" fontSize={11} fill="var(--color-accent)" fillOpacity={0.7}>Heliopausa · ≈ 120 ua</text>
-          <text x={C} y={C - (R(30) + R(50)) / 2 + 4} textAnchor="middle" fontSize={10} fill="var(--color-fg-dim)">Cinturón de Kuiper</text>
-          {PLANETS.map((p) => <circle key={p.name} cx={C} cy={C} r={R(p.a)} fill="none" stroke="var(--color-line-strong)" strokeOpacity={0.8} />)}
-          {[1, 10, 100].map((v) => (
-            <text key={v} x={C + R(v) + 3} y={C + 12} fontSize={9.5} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{v} ua</text>
-          ))}
-          <circle cx={C} cy={C} r={16} fill="url(#sun)" />
-          <circle cx={C} cy={C} r={4} fill="#ffd9a0" />
-          {planets.map((p) => {
-            const [x, y] = pt(p.x, p.y, p.z);
+        <ZoomPan w={S} h={S} maxZoom={25} label="Sistema solar visto desde arriba, escala logarítmica, con la posición actual de las sondas" className="mx-auto max-w-[720px]">
+          {(k) => {
+            const t = (px: number) => px / k; // tamaño constante en pantalla
+            // Etiquetas sin solaparse (en pantalla): de fuera hacia dentro; la elegida siempre visible
+            const placed: { x: number; y: number; w: number }[] = [];
+            const labels = [...rows].sort((a, b) => Number(b.id === sel) - Number(a.id === sel) || b.sun - a.sun).map((r) => {
+              const [x, y] = pt(r.pos[0] / AU, r.pos[1] / AU, r.pos[2] / AU);
+              const w = t(r.name.length * 6.2 + 8);
+              const free = !placed.some((q) => Math.abs(q.y - y) < t(14) && x + w > q.x && x < q.x + q.w);
+              if (free || r.id === sel) placed.push({ x, y, w });
+              return { id: r.id, x, y, show: free || r.id === sel };
+            });
             return (
-              <g key={p.name}>
-                <circle cx={x} cy={y} r={p.size} fill={p.b === Body.Earth ? "#7fb2d8" : "#a6a39a"} />
-                <text x={x} y={y + p.size + 11} textAnchor="middle" fontSize={10} fill="var(--color-fg-muted)">{p.name}</text>
-              </g>
+              <>
+                <defs>
+                  <radialGradient id="sun"><stop offset="0" stopColor="#ffd9a0" /><stop offset="0.5" stopColor="#ff9a3d" stopOpacity="0.6" /><stop offset="1" stopColor="#ff5b1f" stopOpacity="0" /></radialGradient>
+                </defs>
+                <rect x={0} y={0} width={S} height={S} fill="transparent" />
+                {/* Cinturón de Kuiper y heliopausa */}
+                <circle cx={C} cy={C} r={(R(30) + R(50)) / 2} fill="none" stroke="#ecebe60a" strokeWidth={R(50) - R(30)} />
+                <circle cx={C} cy={C} r={R(120)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.35} strokeWidth={t(1)} strokeDasharray={`${t(3)} ${t(6)}`} />
+                <text x={C} y={C - R(120) - t(6)} textAnchor="middle" fontSize={t(11)} fill="var(--color-accent)" fillOpacity={0.7}>Heliopausa · ≈ 120 ua</text>
+                <text x={C} y={C - (R(30) + R(50)) / 2 + t(4)} textAnchor="middle" fontSize={t(10)} fill="var(--color-fg-dim)">Cinturón de Kuiper</text>
+                {PLANETS.map((p) => <circle key={p.name} cx={C} cy={C} r={R(p.a)} fill="none" stroke="var(--color-line-strong)" strokeOpacity={0.8} strokeWidth={t(1)} />)}
+                {[0.1, 1, 10, 100].filter((v) => v >= 1 || k > 3).map((v) => (
+                  <text key={v} x={C + R(v) + t(3)} y={C + t(12)} fontSize={t(9.5)} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{v.toLocaleString("es")} ua</text>
+                ))}
+                <circle cx={C} cy={C} r={t(16)} fill="url(#sun)" />
+                <circle cx={C} cy={C} r={t(4)} fill="#ffd9a0" />
+                {planets.map((p) => {
+                  const [x, y] = pt(p.x, p.y, p.z);
+                  return (
+                    <g key={p.name}>
+                      <circle cx={x} cy={y} r={t(p.size)} fill={p.b === Body.Earth ? "#7fb2d8" : "#a6a39a"} />
+                      <text x={x} y={y + t(p.size + 11)} textAnchor="middle" fontSize={t(10)} fill="var(--color-fg-muted)">{p.name}</text>
+                    </g>
+                  );
+                })}
+                {rows.map((r) => {
+                  const l = labels.find((x) => x.id === r.id)!;
+                  const on = r.id === sel;
+                  return (
+                    <g key={r.id} className="cursor-pointer" onClick={() => setSel(r.id)}>
+                      <circle cx={l.x} cy={l.y} r={t(12)} fill="transparent" />
+                      <rect x={l.x - t(4)} y={l.y - t(4)} width={t(8)} height={t(8)} transform={`rotate(45 ${l.x} ${l.y})`} fill={on ? "var(--color-accent)" : "#ecebe6"} stroke="var(--color-surface)" strokeWidth={t(2)} />
+                      {on && <circle cx={l.x} cy={l.y} r={t(10)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.6} strokeWidth={t(1)} />}
+                      {l.show && <text x={l.x + t(9)} y={l.y + t(3.5)} fontSize={t(11)} fontWeight={on ? 600 : 400} fill={on ? "var(--color-fg)" : "var(--color-fg-muted)"}>{r.name}</text>}
+                    </g>
+                  );
+                })}
+              </>
             );
-          })}
-          {rows.map((r) => {
-            const l = labels.find((x) => x.id === r.id)!;
-            const on = r.id === sel;
-            return (
-              <g key={r.id} className="cursor-pointer" onClick={() => setSel(r.id)}>
-                <circle cx={l.x} cy={l.y} r={12} fill="transparent" />
-                <rect x={l.x - 4} y={l.y - 4} width={8} height={8} transform={`rotate(45 ${l.x} ${l.y})`} fill={on ? "var(--color-accent)" : "#ecebe6"} stroke="var(--color-surface)" strokeWidth={2} />
-                {on && <circle cx={l.x} cy={l.y} r={10} fill="none" stroke="var(--color-accent)" strokeOpacity={0.6} />}
-                {l.show && <text x={l.x + 9} y={l.y + 3.5} fontSize={11} fontWeight={on ? 600 : 400} fill={on ? "var(--color-fg)" : "var(--color-fg-muted)"}>{r.name}</text>}
-              </g>
-            );
-          })}
-        </svg>
-        <p className="border-t border-line px-4 py-2.5 text-[11px] text-fg-dim">Vista desde el polo norte de la eclíptica. Distancia al Sol en escala logarítmica (cada anillo de 1, 10 y 100 ua); la dirección es real. Posiciones: JPL Horizons, interpoladas al segundo.</p>
+          }}
+        </ZoomPan>
+        <p className="border-t border-line px-4 py-2.5 text-[11px] text-fg-dim">Vista desde el polo norte de la eclíptica. Distancia al Sol en escala logarítmica (cada anillo de 1, 10 y 100 ua); la dirección es real. Acerca con Ctrl/⌘ + rueda, pellizco o doble clic para ver los planetas interiores. Posiciones: JPL Horizons, interpoladas al segundo.</p>
       </section>
 
       <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">

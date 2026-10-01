@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Streamed } from "@/components/ui/Streamed";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { PopulationChart } from "@/components/charts/UniverseCharts";
-import { OrbitShells, SHELL_NOTES } from "@/components/space/OrbitShells";
+import { OrbitShells } from "@/components/space/OrbitShells";
+import { SHELL_NOTES } from "@/components/space/orbit-shells-data";
 
 export const metadata: Metadata = { title: "Población orbital" };
 
@@ -58,7 +59,7 @@ async function Content() {
             <div>
               <p className="label">Todo a escala real</p>
               <h2 className="mt-1 text-2xl font-semibold tracking-tight">Así de lleno está el espacio cercano</h2>
-              <p className="mt-2 text-sm leading-relaxed text-fg-muted">Cada punto representa unos 40 objetos catalogados. En <span className="text-accent">naranja</span>, satélites que siguen funcionando; en gris, satélites apagados, etapas de cohete y fragmentos.</p>
+              <p className="mt-2 text-sm leading-relaxed text-fg-muted">Cada punto representa unos 40 objetos catalogados (al acercarte, unos 10). En <span className="text-accent">naranja</span>, satélites que siguen funcionando; en gris, satélites apagados, etapas de cohete y fragmentos.</p>
             </div>
             <ul className="grid gap-3">
               {(["LEO", "MEO", "GEO"] as const).map((r) => (
