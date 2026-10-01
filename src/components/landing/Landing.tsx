@@ -106,8 +106,8 @@ export function Landing({ data }: { data: LandingData }) {
     if (!el || reduce.current) return gsap.timeline();
     const items = el.querySelectorAll(IN);
     return gsap.timeline({ delay }).fromTo(items,
-      { opacity: 0, y: 22 * dir, filter: "blur(5px)" },
-      { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.55, stagger: 0.045, ease: "power3.out", clearProps: "filter,transform" });
+      { opacity: 0, y: 40 * dir },
+      { opacity: 1, y: 0, duration: 0.75, stagger: 0.05, ease: "power3.out", clearProps: "transform" });
   }, []);
 
   const goTo = useCallback((to: number) => {
@@ -117,20 +117,29 @@ export function Landing({ data }: { data: LandingData }) {
     const dir = to > from ? 1 : -1;
     const a = slides.current[from], b = slides.current[to];
     finishPending(SLIDES[from].id);
+    if (SLIDES[to].id === "planeta" && data.stops.length) {
+      const k = dir > 0 ? 0 : data.stops.length - 1;
+      stopRef.current = k;
+      setStop(k);
+      setTourAuto(true);
+    }
     indexRef.current = to;
     setIndex(to);
     applyGlobe(SLIDES[to].id, stopRef.current);
     try { history.replaceState(null, "", `#${SLIDES[to].id}`); } catch { /* sin historial */ }
     if (b) b.scrollTop = dir > 0 ? 0 : b.scrollHeight;
+    // Entrar a "Menos conocidos" desde abajo deja la galería al final (se recorre hacia atrás)
+    if (SLIDES[to].id === "visibles" && track.current) track.current.scrollLeft = dir > 0 ? 0 : track.current.scrollWidth;
     const d = reduce.current ? 0 : 1;
     // Protección: si la pestaña queda oculta a mitad de la transición (el navegador congela las animaciones), se completa sola
     const guard = setTimeout(() => tl.progress(1), 1600);
     const tl = gsap.timeline({ onComplete: () => { clearTimeout(guard); busy.current = false; onSettle(SLIDES[to].id); } });
-    tl.to(a, { autoAlpha: 0, y: -30 * dir, scale: 0.985, filter: "blur(6px)", duration: 0.38 * d, ease: "power2.in" })
-      .set(a, { y: 0, scale: 1, filter: "blur(0px)" })
-      .fromTo(b, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25 * d, ease: "none" }, 0.24 * d);
-    if (d) tl.add(cascade(b, dir), 0.24);
-  }, [applyGlobe, cascade, finishPending, onSettle]);
+    tl.set(b, { autoAlpha: 1, yPercent: 100 * dir })
+      .to(a, { yPercent: -100 * dir, duration: 0.95 * d, ease: "power3.inOut" }, 0)
+      .to(b, { yPercent: 0, duration: 0.95 * d, ease: "power3.inOut" }, 0)
+      .set(a, { autoAlpha: 0, yPercent: 0 });
+    if (d) tl.add(cascade(b, dir), 0.3);
+  }, [applyGlobe, cascade, finishPending, onSettle, data.stops.length]);
 
   const selectStop = useCallback((i: number, manual = true) => {
     const k = (i + data.stops.length) % Math.max(1, data.stops.length);
@@ -182,8 +191,23 @@ export function Landing({ data }: { data: LandingData }) {
     }, root);
     const settleTimer = setTimeout(() => onSettle(SLIDES[start].id), 700);
 
-    // ── Entrada: un gesto = una escena ──
-    let lastWheel = 0, acc = 0, lockUntil = 0;
+    // ── Entrada: un gesto = un paso (base del recorrido, tramo de galería o escena) ──
+    let lastWheel = 0, acc = 0, lockUntil = 0, hEdgeAt = 0;
+    const advance = (dir: 1 | -1) => {
+      const id = SLIDES[indexRef.current].id;
+      if (id === "planeta") {
+        const k = stopRef.current + dir;
+        if (k >= 0 && k < data.stops.length) { selectStop(k); return; }
+      }
+      if (id === "visibles" && track.current) {
+        const t = track.current, max = t.scrollWidth - t.clientWidth;
+        if (dir > 0 ? t.scrollLeft < max - 4 : t.scrollLeft > 4) {
+          t.scrollBy({ left: dir * Math.min(600, t.clientWidth * 0.75), behavior: reduce.current ? "auto" : "smooth" });
+          return;
+        }
+      }
+      goTo(indexRef.current + dir);
+    };
     const scroller = () => slides.current[indexRef.current];
     const atEdge = (dir: 1 | -1) => {
       const el = scroller();
@@ -198,13 +222,19 @@ export function Landing({ data }: { data: LandingData }) {
       lastWheel = now;
       if (!atEdge(dir)) { acc = 0; return; } // el contenido de esta escena se desplaza por dentro
       e.preventDefault();
+      // "Menos conocidos": el scroll vertical desplaza la galería en horizontal hasta mostrarla entera
+      if (SLIDES[indexRef.current].id === "visibles" && track.current && !busy.current) {
+        const t = track.current, max = t.scrollWidth - t.clientWidth;
+        if (dir > 0 ? t.scrollLeft < max - 2 : t.scrollLeft > 2) { t.scrollLeft += e.deltaY * 1.2; hEdgeAt = now; return; }
+        if (now - hEdgeAt < 260) { hEdgeAt = now; return; } // llegó al borde en este mismo gesto: espera uno nuevo
+      }
       if (busy.current || now < lockUntil) { lockUntil = Math.max(lockUntil, now + 120); return; } // inercia del gesto anterior
       if (gap > 200) acc = 0;
       acc += e.deltaY;
       if (Math.abs(acc) > 30) {
         acc = 0;
         lockUntil = now + 500;
-        goTo(indexRef.current + dir);
+        advance(dir);
       }
     };
     let ty = 0, tx = 0, edge = { up: true, down: true };
@@ -216,14 +246,14 @@ export function Landing({ data }: { data: LandingData }) {
     const onTouchEnd = (e: TouchEvent) => {
       const dy = ty - e.changedTouches[0].clientY, dx = tx - e.changedTouches[0].clientX;
       if (Math.abs(dy) < 50 || Math.abs(dy) < Math.abs(dx)) return;
-      if (dy > 0 && edge.down) goTo(indexRef.current + 1);
-      else if (dy < 0 && edge.up) goTo(indexRef.current - 1);
+      if (dy > 0 && edge.down) advance(1);
+      else if (dy < 0 && edge.up) advance(-1);
     };
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest("input, textarea, select")) return;
       const k = e.key;
-      if (["ArrowDown", "PageDown", " "].includes(k) && atEdge(1)) { e.preventDefault(); goTo(indexRef.current + 1); }
-      else if (["ArrowUp", "PageUp"].includes(k) && atEdge(-1)) { e.preventDefault(); goTo(indexRef.current - 1); }
+      if (["ArrowDown", "PageDown", " "].includes(k) && atEdge(1)) { e.preventDefault(); if (!busy.current) advance(1); }
+      else if (["ArrowUp", "PageUp"].includes(k) && atEdge(-1)) { e.preventDefault(); if (!busy.current) advance(-1); }
       else if (k === "Home") { e.preventDefault(); goTo(0); }
       else if (k === "End") { e.preventDefault(); goTo(SLIDES.length - 1); }
       else if (SLIDES[indexRef.current].id === "planeta" && (k === "ArrowRight" || k === "ArrowLeft")) selectStop(stopRef.current + (k === "ArrowRight" ? 1 : -1));
@@ -387,7 +417,7 @@ export function Landing({ data }: { data: LandingData }) {
                     {data.stops.map((st, i) => <button key={st.id} onClick={() => selectStop(i)} aria-label={st.region} className={clsx("h-1 rounded-full transition-all duration-300", stop === i ? "w-6 bg-accent" : "w-2 bg-line-strong")} />)}
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-fg-dim">{tourAuto ? "Avanza solo · elige una base para detenerlo" : "Flechas ← → para cambiar de base"}</p>
+                <p className="mt-2 text-[11px] text-fg-dim">{tourAuto ? "Desliza para recorrer las bases · o elige una" : "Desliza o usa ← → para cambiar de base"}</p>
               </div>
             )}
           </div>
@@ -424,7 +454,7 @@ export function Landing({ data }: { data: LandingData }) {
                 <button onClick={() => scrollTrack(1)} aria-label="Siguientes" className="flex size-10 items-center justify-center rounded-md border border-line-strong bg-bg/60 hover:bg-surface-2"><ChevronRight className="size-4" /></button>
               </div>
             </div>
-            <div ref={track} data-hscroll data-in-stagger className="mt-8 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto overscroll-x-contain px-5 pb-4 [scrollbar-width:none] md:scroll-px-12 md:px-12 lg:scroll-px-20 lg:px-20 [&::-webkit-scrollbar]:hidden">
+            <div ref={track} data-hscroll data-in-stagger className="mt-8 flex scroll-px-5 gap-3 overflow-x-auto overscroll-x-contain px-5 pb-4 [scrollbar-width:none] md:scroll-px-12 md:px-12 lg:scroll-px-20 lg:px-20 [&::-webkit-scrollbar]:hidden">
               {data.lesser.map((o) => (
                 <Link key={o.id} href={`/organizaciones/${o.id}`} className="group flex min-h-[260px] w-[250px] shrink-0 snap-start flex-col rounded-lg border border-line bg-surface p-5 transition-colors hover:border-accent/50 md:w-[290px]">
                   <div className="flex size-16 items-center justify-center overflow-hidden rounded-md bg-white/95 p-2">
