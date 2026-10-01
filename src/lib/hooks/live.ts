@@ -29,8 +29,11 @@ function delay() {
 
 async function poll() {
   if (typeof document !== "undefined" && document.hidden) return schedule();
+  const asked = slug;
   try {
-    const r = await fetch(`/api/live${slug ? `?slug=${encodeURIComponent(slug)}` : ""}`, { cache: "no-store" });
+    const r = await fetch(`/api/live${asked ? `?slug=${encodeURIComponent(asked)}` : ""}`, { cache: "no-store" });
+    // Si mientras tanto se abrió otro lanzamiento, esta respuesta ya no vale (pediría su estado a continuación).
+    if (asked !== slug) return poll();
     if (r.ok) {
       snapshot = await r.json();
       subs.forEach((s) => s());
@@ -67,8 +70,16 @@ function subscribe(cb: () => void) {
 /** Datos en vivo (null hasta la primera respuesta: usar entonces los datos del servidor). */
 export function useLive(forSlug?: string): LivePayload | null {
   const sub = useCallback((cb: () => void) => {
-    if (forSlug && slug !== forSlug) { slug = forSlug; snapshot = null; }
-    return subscribe(cb);
+    if (forSlug && slug !== forSlug) {
+      slug = forSlug;
+      if (snapshot) snapshot = { ...snapshot, launch: null }; // el resto (próximo, última sync) sigue valiendo
+      if (timer) { clearTimeout(timer); timer = setTimeout(poll, 300); } // estado del nuevo lanzamiento cuanto antes
+    }
+    const unsub = subscribe(cb);
+    return () => {
+      unsub();
+      if (forSlug && slug === forSlug) slug = null; // al salir de la ficha, el latido deja de pedir ese lanzamiento
+    };
   }, [forSlug]);
   return useSyncExternalStore(sub, () => snapshot, () => null);
 }

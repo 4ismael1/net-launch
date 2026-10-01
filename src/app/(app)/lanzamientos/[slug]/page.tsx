@@ -14,6 +14,7 @@ import { WeatherCard } from "@/components/weather/WeatherCard";
 import { getLaunchNews } from "@/lib/news";
 import { NewsRows } from "@/components/news/NewsList";
 import { countryName, netLabel, padName, statusInfo } from "@/lib/format";
+import { missionTypeEs, orbitEs, precisionEs, statusNameEs } from "@/lib/labels";
 
 export async function generateStaticParams() {
   return (await getPrerenderSlugs(12)).map((slug) => ({ slug }));
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: PageProps<"/lanzamientos/[slu
   if (!d) return { title: "Lanzamiento no encontrado" };
   return {
     title: d.l.name,
-    description: (d.l.missionDescriptionEs ?? d.l.missionDescription)?.slice(0, 160) ?? `${d.l.name} · ${d.provider?.name ?? ""}`,
+    description: (d.l.missionDescriptionEs ?? d.l.missionDescription)?.slice(0, 160) ?? [d.l.name, d.provider?.name].filter(Boolean).join(" · "),
     openGraph: d.l.imageUrl ? { images: [d.l.imageUrl] } : undefined,
   };
 }
@@ -102,7 +103,7 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
           <Card>
-            <CardHeader title="Misión" meta={l.missionType ?? undefined} />
+            <CardHeader title="Misión" meta={missionTypeEs(l.missionType) ?? undefined} />
             <div className="space-y-3 p-4 text-sm leading-relaxed text-fg-muted">
               {l.missionDescription ? (
                 l.missionDescriptionEs ? (
@@ -147,12 +148,12 @@ async function LaunchContent({ params }: Pick<PageProps<"/lanzamientos/[slug]">,
               <Row k="Fecha UTC"><span className="num">{netLabel(l.net, l.netPrecision)}{["SEC", "MIN", "HR"].includes(l.netPrecision ?? "MIN") ? " UTC" : ""}</span></Row>
               {d.location?.timezone && <Row k="Hora local de la base"><span className="num">{netLabel(l.net, l.netPrecision, d.location.timezone)}</span></Row>}
               {l.windowStart && l.windowEnd && l.windowEnd.getTime() !== l.windowStart.getTime() && (
-                <Row k="Ventana"><span className="num">{new Intl.DateTimeFormat("es", { timeStyle: "short", timeZone: "UTC" }).format(l.windowStart)}–{new Intl.DateTimeFormat("es", { timeStyle: "short", timeZone: "UTC" }).format(l.windowEnd)} UTC</span></Row>
+                <Row k="Ventana"><span className="num">{windowLabel(l.windowStart, l.windowEnd)}</span></Row>
               )}
-              <Row k="Precisión de la fecha">{l.netPrecision ?? "—"}</Row>
-              <Row k="Estado"><span title={statusInfo(l.statusAbbrev).hint}>{l.statusName ?? "—"}</span></Row>
+              <Row k="Precisión de la fecha">{precisionEs(l.netPrecision) ?? "—"}</Row>
+              <Row k="Estado"><span title={statusInfo(l.statusAbbrev).hint}>{statusNameEs(l.statusAbbrev, l.statusName) ?? "—"}</span></Row>
               {d.rocket && <Row k="Cohete"><Link className="hover:underline" href={`/vehiculos/${d.rocket.id}`}>{d.rocket.fullName ?? d.rocket.name}</Link></Row>}
-              {l.orbitName && <Row k="Órbita">{l.orbitName}{l.orbitAbbrev && <span className="text-fg-dim"> ({l.orbitAbbrev})</span>}</Row>}
+              {l.orbitName && <Row k="Órbita">{orbitEs(l.orbitName)}{l.orbitAbbrev && <span className="text-fg-dim"> ({l.orbitAbbrev})</span>}</Row>}
               {d.pad && <Row k="Plataforma">{padName(d.pad.name)}</Row>}
               {d.location && <Row k="Base"><Link className="hover:underline" href={`/bases/${d.location.id}`}>{d.location.name}</Link></Row>}
               {d.pad?.latitude != null && d.pad.longitude != null && <Row k="Coordenadas"><span className="num">{d.pad.latitude.toFixed(4)}°, {d.pad.longitude.toFixed(4)}°</span></Row>}
@@ -244,6 +245,13 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   );
 }
 
+/** Ventana en UTC; si empieza y termina en días distintos, incluye la fecha. */
+function windowLabel(a: Date, b: Date) {
+  const sameDay = a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+  const f = (d: Date) => new Intl.DateTimeFormat("es", sameDay ? { timeStyle: "short", timeZone: "UTC" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(d);
+  return `${f(a)}–${f(b)} UTC`;
+}
+
 function youtubeId(url: string) {
   const m = /(?:youtube\.com\/(?:watch\?v=|live\/|embed\/)|youtu\.be\/)([\w-]{11})/.exec(url);
   return m?.[1] ?? null;
@@ -288,7 +296,7 @@ function Streams({ d }: { d: LaunchDetail }) {
                     <span className="block truncate text-sm">{v.title ?? v.url}</span>
                     <span className="flex items-center gap-2 text-xs text-fg-dim"><SourceTag type={v.typeName} /> {v.publisher ?? v.source}{v.language && ` · ${v.language.toUpperCase()}`}</span>
                   </span>
-                  <span className="shrink-0 rounded-md border border-line-strong px-2 py-1 font-mono text-[10.5px] tracking-wider">{v.live ? "WATCH LIVE" : "VER"}</span>
+                  <span className="shrink-0 rounded-md border border-line-strong px-2 py-1 font-mono text-[10.5px] tracking-wider">{v.live ? "EN DIRECTO" : "VER"}</span>
                 </a>
               </li>
             ))}

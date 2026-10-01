@@ -10,7 +10,10 @@ import { durLabel } from "@/lib/format";
 import { getInSpace } from "@/lib/data/space";
 import { When } from "@/components/ui/When";
 
-export const metadata: Metadata = { title: "Naves" };
+export const metadata: Metadata = {
+  title: "Naves",
+  description: "Cápsulas y naves de carga (Dragon, Soyuz, Progress, Shenzhou, Cygnus, Orion…): las acopladas ahora, cada unidad con sus vuelos y su tiempo en el espacio.",
+};
 
 export default function Page({ searchParams }: PageProps<"/naves">) {
   return (
@@ -62,12 +65,15 @@ async function Content({ searchParams }: Pick<PageProps<"/naves">, "searchParams
       <Card><Empty>El catálogo histórico de naves se está descargando de LL2 poco a poco (respetando su límite de peticiones). Vuelve en unas horas.</Empty></Card>
     </div>
   );
+  // "En el espacio": el catálogo es semanal; las acopladas de la instantánea (cada 3 h) cuentan siempre
+  const dockedNames = new Set(docked.map((x) => x.vehicle));
+  const up = (s: (typeof items)[number]) => s.inSpace || dockedNames.has(s.name);
   const sel = Number(typeof sp.tipo === "string" ? sp.tipo : NaN);
   const group = groups.find((g) => g.id === sel) ?? null;
   const units = items
-    .filter((s) => (group ? s.configId === group.id : s.inSpace))
-    .sort((a, b) => Number(b.inSpace) - Number(a.inSpace) || b.flights - a.flights || b.timeInSpace - a.timeInSpace);
-  const now = items.filter((s) => s.inSpace).length;
+    .filter((s) => (group ? s.configId === group.id : up(s)))
+    .sort((a, b) => Number(up(b)) - Number(up(a)) || b.flights - a.flights || b.timeInSpace - a.timeInSpace);
+  const now = items.filter(up).length;
   const maxFlights = items.reduce((m, s) => (s.flights > m.flights ? s : m), items[0]);
 
   return (
@@ -76,7 +82,7 @@ async function Content({ searchParams }: Pick<PageProps<"/naves">, "searchParams
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
         <Kpi label="Unidades" value={items.length.toLocaleString("es")} hint={`${groups.length} modelos`} />
         <Kpi label="En el espacio ahora" value={now} />
-        <Kpi label="Más reutilizada" value={maxFlights.flights} hint={`${maxFlights.name} · vuelos`} />
+        <Kpi label="Más reutilizada" value={maxFlights.flights} hint={`vuelos · ${maxFlights.name}`} />
         <Kpi label="Tiempo total en órbita" value={durLabel(items.reduce((s, x) => s + x.timeInSpace, 0))} />
       </div>
 
@@ -118,7 +124,7 @@ async function Content({ searchParams }: Pick<PageProps<"/naves">, "searchParams
               <p className="truncate text-[14px] font-medium">{s.name}</p>
               <p className="truncate text-xs text-fg-dim">{s.config}{s.serial && ` · ${s.serial}`}</p>
               <p className="mt-auto flex flex-wrap items-center gap-x-3 pt-1.5 text-xs text-fg-muted">
-                {s.inSpace ? <span className="inline-flex items-center gap-1.5 text-accent"><span className="size-1.5 rounded-full bg-accent" /> En el espacio</span> : <span>{craftStatus(s.status) ?? "—"}</span>}
+                {up(s) ? <span className="inline-flex items-center gap-1.5 text-accent"><span className="size-1.5 rounded-full bg-accent" /> En el espacio</span> : <span>{craftStatus(s.status) ?? "—"}</span>}
                 <span><span className="num text-fg">{s.flights}</span> {s.flights === 1 ? "vuelo" : "vuelos"}</span>
                 <span className="num">{durLabel(s.timeInSpace)}</span>
               </p>

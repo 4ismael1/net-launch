@@ -50,13 +50,17 @@ export const FEATURED = [
   { norad: 39084, name: "Landsat 8", note: "Observación de la Tierra" },
 ];
 
+// Último resultado de gp(): CelesTrak responde 403 cuando ese conjunto ya se descargó desde esta IP y aún no se ha
+// actualizado (cada 2 h). Reintentar pronto no sirve y CelesTrak bloquea las IP insistentes → caché de espera larga.
+let lastThrottled = false;
 async function gp(query: string): Promise<OMM[] | null> {
+  lastThrottled = false;
   try {
     const res = await fetch(`https://celestrak.org/NORAD/elements/gp.php?${query}&FORMAT=JSON`, {
       signal: AbortSignal.timeout(20_000),
       headers: { "User-Agent": "NET-academic-launch-monitor" },
     });
-    if (!res.ok) return null;
+    if (!res.ok) { lastThrottled = res.status === 403; return null; }
     const t = await res.text();
     return t.trim().startsWith("[") ? (JSON.parse(t) as OMM[]) : [];
   } catch {
@@ -64,33 +68,43 @@ async function gp(query: string): Promise<OMM[] | null> {
   }
 }
 
+// Caché normal (≥ 3 h, política de CelesTrak) y caché corta si CelesTrak falla, para reintentar pronto
+const OK = { stale: 3 * 3600, revalidate: 3 * 3600, expire: 24 * 3600 };
+const FAIL = { stale: 60, revalidate: 300, expire: 600 };
+const THROTTLED = { stale: 600, revalidate: 3600, expire: 7200 };
+
 export async function getGroup(key: GroupKey) {
   "use cache";
-  cacheLife({ stale: 3 * 3600, revalidate: 3 * 3600, expire: 24 * 3600 });
-  return gp(`GROUP=${encodeURIComponent(key)}`);
+  const r = await gp(`GROUP=${encodeURIComponent(key)}`);
+  cacheLife(r ? OK : lastThrottled ? THROTTLED : FAIL);
+  return r;
 }
 
 export async function getSatellite(norad: number) {
   "use cache";
-  cacheLife({ stale: 3 * 3600, revalidate: 3 * 3600, expire: 24 * 3600 });
   const [elems, meta] = await Promise.all([
     gp(`CATNR=${norad}`),
     fetch(`https://celestrak.org/satcat/records.php?CATNR=${norad}&FORMAT=JSON`, { signal: AbortSignal.timeout(15_000) })
-      .then((r) => (r.ok ? r.text() : "[]"))
-      .then((t) => (t.trim().startsWith("[") ? (JSON.parse(t) as SatcatRecord[]) : []))
-      .catch(() => [] as SatcatRecord[]),
+      .then((r) => (r.ok ? r.text() : null))
+      .then((t) => (t == null ? null : t.trim().startsWith("[") ? (JSON.parse(t) as SatcatRecord[]) : []))
+      .catch(() => null),
   ]);
-  return { omm: elems?.[0] ?? null, meta: meta[0] ?? null, unavailable: elems === null };
+  cacheLife(elems === null || meta === null ? FAIL : OK);
+  return { omm: elems?.[0] ?? null, meta: meta?.[0] ?? null, unavailable: elems === null };
 }
 
 /** Búsqueda por nombre en el catálogo GP (mín. 3 letras). */
 export async function searchSatellites(q: string) {
   "use cache";
-  cacheLife({ stale: 3600, revalidate: 3 * 3600, expire: 24 * 3600 });
   const clean = q.replace(/[^\w\s()\-./]/g, "").trim();
-  if (clean.length < 3) return [];
-  if (/^\d{1,6}$/.test(clean)) return (await gp(`CATNR=${clean}`)) ?? [];
-  return ((await gp(`NAME=${encodeURIComponent(clean)}`)) ?? []).slice(0, 60);
+  if (clean.length < 3) {
+    cacheLife({ stale: 3600, revalidate: 3 * 3600, expire: 24 * 3600 });
+    return [];
+  }
+  const r = /^\d{1,6}$/.test(clean) ? await gp(`CATNR=${clean}`) : await gp(`NAME=${encodeURIComponent(clean)}`);
+  // Un fallo de CelesTrak no se guarda 3 h como "sin resultados"
+  cacheLife(r ? { stale: 3600, revalidate: 3 * 3600, expire: 24 * 3600 } : FAIL);
+  return r ? r.slice(0, 60) : null; // null = CelesTrak no responde (la ruta devuelve 503)
 }
 
 export type SatcatRecord = {
@@ -112,4 +126,100 @@ export async function launchForObject(objectId: string | null | undefined) {
   if (!m) return null;
   const { rows } = await db.execute<{ slug: string; name: string }>(sql`SELECT slug, name FROM launches WHERE launch_designator = ${m[1]} LIMIT 1`);
   return rows[0] ?? null;
+}
+
+// ───────────── Población orbital en 3D ─────────────
+// Conjuntos GP públicos de CelesTrak que incluyen objetos de todos los tipos. El catálogo completo (todas las etapas y
+// fragmentos) no se publica en descargas abiertas por grupos: lo que no está aquí no se dibuja (nunca se inventan posiciones).
+export const POPULATION_SOURCES = [
+  { key: "active", query: "GROUP=active", label: "Satélites operativos" },
+  { key: "gpz-plus", query: "SPECIAL=GPZ-PLUS", label: "Zona geoestacionaria (todos los objetos)" },
+  { key: "last-30-days", query: "GROUP=last-30-days", label: "Lanzados en los últimos 30 días" },
+  { key: "fengyun-1c-debris", query: "GROUP=fengyun-1c-debris", label: "Fragmentos de Fengyun-1C (2007)" },
+  { key: "cosmos-2251-debris", query: "GROUP=cosmos-2251-debris", label: "Fragmentos de Cosmos 2251 (2009)" },
+  { key: "iridium-33-debris", query: "GROUP=iridium-33-debris", label: "Fragmentos de Iridium 33 (2009)" },
+  { key: "cosmos-1408-debris", query: "GROUP=cosmos-1408-debris", label: "Fragmentos de Cosmos 1408 (2021)" },
+] as const;
+
+/** Tipo de objeto: 0 carga útil, 1 etapa de cohete, 2 fragmento, 3 sin identificar (orden de OBJ_TYPES en satcat.ts). */
+export type PopType = 0 | 1 | 2 | 3;
+/** Fila compacta: [norad, nombre, designador, época, n, e, i, Ω, ω, M, B*, ṅ, n̈, tipo, operativo (0/1), fuente]. */
+export type PopRow = [number, string, string, string, number, number, number, number, number, number, number, number, number, PopType, 0 | 1, number];
+export type Population = { sources: { key: string; label: string; count: number | null }[]; rows: PopRow[] };
+
+/** Tipo según la convención de nombres del catálogo (SATCAT): «R/B» etapas, «DEB» fragmentos, «OBJECT X»/«TBA» sin identificar. */
+export function popTypeFromName(name: string): PopType {
+  const n = name.toUpperCase();
+  if (/\bR\/B\b|\bAKM\b|\bPKM\b/.test(n)) return 1;
+  if (/\bDEB\b|\bCOOLANT\b/.test(n)) return 2;
+  if (/^OBJECT [A-Z]{1,3}$|^TBA\b|^UNKNOWN\b/.test(n)) return 3;
+  return 0;
+}
+
+/** CSV de CelesTrak → filas compactas. null si la respuesta no es un CSV de elementos (p. ej. aviso de límite de descargas). */
+function parseGpCsv(text: string, src: number, operational: boolean): PopRow[] | null {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (!lines.length || !lines[0].startsWith("OBJECT_NAME,")) return lines.length && /No GP data found/i.test(lines[0]) ? [] : null;
+  const head = lines[0].split(",");
+  const ix = (k: string) => head.indexOf(k);
+  const I = {
+    name: ix("OBJECT_NAME"), id: ix("OBJECT_ID"), epoch: ix("EPOCH"), mm: ix("MEAN_MOTION"), ecc: ix("ECCENTRICITY"), inc: ix("INCLINATION"),
+    raan: ix("RA_OF_ASC_NODE"), argp: ix("ARG_OF_PERICENTER"), ma: ix("MEAN_ANOMALY"), norad: ix("NORAD_CAT_ID"), bstar: ix("BSTAR"),
+    ndot: ix("MEAN_MOTION_DOT"), nddot: ix("MEAN_MOTION_DDOT"),
+  };
+  if (Object.values(I).some((v) => v < 0)) return null;
+  const out: PopRow[] = [];
+  for (let k = 1; k < lines.length; k++) {
+    // Campos entre comillas (nombres con comas)
+    const c: string[] = [];
+    const l = lines[k];
+    let cur = "", q = false;
+    for (let j = 0; j < l.length; j++) {
+      const ch = l[j];
+      if (ch === '"') { if (q && l[j + 1] === '"') { cur += '"'; j++; } else q = !q; }
+      else if (ch === "," && !q) { c.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    c.push(cur);
+    const norad = Number(c[I.norad]), mm = Number(c[I.mm]);
+    if (!Number.isInteger(norad) || !(mm > 0)) continue;
+    const name = c[I.name].trim();
+    out.push([
+      norad, name, c[I.id] ?? "", c[I.epoch], mm, Number(c[I.ecc]), Number(c[I.inc]), Number(c[I.raan]), Number(c[I.argp]), Number(c[I.ma]),
+      Number(c[I.bstar]) || 0, Number(c[I.ndot]) || 0, Number(c[I.nddot]) || 0, operational ? 0 : popTypeFromName(name), operational ? 1 : 0, src,
+    ]);
+  }
+  return out;
+}
+
+async function getPopulationSource(i: number) {
+  "use cache";
+  const s = POPULATION_SOURCES[i];
+  let rows: PopRow[] | null = null;
+  let throttled = false;
+  try {
+    const res = await fetch(`https://celestrak.org/NORAD/elements/gp.php?${s.query}&FORMAT=CSV`, {
+      signal: AbortSignal.timeout(25_000),
+      headers: { "User-Agent": "NET-academic-launch-monitor" },
+    });
+    if (res.ok) rows = parseGpCsv(await res.text(), i, s.key === "active");
+    else throttled = res.status === 403;
+  } catch {
+    rows = null;
+  }
+  cacheLife(rows ? OK : throttled ? THROTTLED : FAIL);
+  return rows;
+}
+
+/** Objetos con elementos públicos para la vista 3D (sin duplicados; el primer conjunto que contiene un objeto manda). */
+export async function getPopulation(): Promise<Population | null> {
+  const lists = await Promise.all(POPULATION_SOURCES.map((_, i) => getPopulationSource(i)));
+  if (lists.every((l) => !l)) return null;
+  const seen = new Set<number>();
+  const rows: PopRow[] = [];
+  for (const l of lists) for (const r of l ?? []) if (!seen.has(r[0])) { seen.add(r[0]); rows.push(r); }
+  return {
+    sources: POPULATION_SOURCES.map((s, i) => ({ key: s.key, label: s.label, count: lists[i]?.length ?? null })),
+    rows,
+  };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import clsx from "clsx";
 import { Search } from "lucide-react";
 
@@ -17,23 +17,29 @@ export function UrlFilters({ fields, count, noun }: { fields: Field[]; count: nu
   const sp = useSearchParams();
   const [pending, start] = useTransition();
   const searchField = fields.find((f) => f.kind === "search");
-  const [q, setQ] = useState(searchField ? sp.get(searchField.key) ?? "" : "");
+  const urlQ = searchField ? sp.get(searchField.key) ?? "" : "";
+  const [q, setQ] = useState(urlQ);
 
+  // Siempre desde la URL actual (no la capturada al teclear).
   const set = (k: string, v: string) => {
-    const next = new URLSearchParams(sp);
+    const next = new URLSearchParams(window.location.search);
     if (v) next.set(k, v);
     else next.delete(k);
     next.delete("page"); // un filtro nuevo siempre empieza en la primera página
     start(() => router.replace(`${path}${next.size ? `?${next}` : ""}`, { scroll: false }));
   };
 
-  const first = useRef(true);
+  // La URL manda si cambia desde fuera (atrás/adelante).
+  const [seenQ, setSeenQ] = useState(urlQ);
+  if (urlQ !== seenQ) { setSeenQ(urlQ); setQ(urlQ); }
+
+  // Debounce solo si el texto difiere de la URL (no se dispara al volver a mostrar la página).
   useEffect(() => {
-    if (first.current || !searchField) { first.current = false; return; }
+    if (!searchField || q.trim() === urlQ) return;
     const t = setTimeout(() => set(searchField.key, q.trim()), 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+  }, [q, urlQ]);
 
   return (
     <div className={clsx("mb-5 flex flex-wrap items-center gap-2 transition-opacity", pending && "opacity-70")}>
@@ -41,13 +47,13 @@ export function UrlFilters({ fields, count, noun }: { fields: Field[]; count: nu
         f.kind === "search" ? (
           <div key={f.key} className="relative min-w-[220px] flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-fg-dim" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={f.placeholder}
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={f.placeholder} aria-label={f.placeholder} type="search"
               className="h-9 w-full rounded-md border border-line bg-surface pr-3 pl-8 text-[13px] text-fg placeholder:text-fg-dim focus:border-line-strong focus:outline-none" />
           </div>
         ) : f.kind === "segmented" ? (
           <div key={f.key} className="flex rounded-md border border-line bg-surface p-0.5 text-[13px]">
             {f.options.map(([v, l]) => (
-              <button key={v} onClick={() => set(f.key, v)}
+              <button key={v} type="button" aria-pressed={(sp.get(f.key) ?? "") === v} onClick={() => set(f.key, v)}
                 className={clsx("rounded px-3 py-1.5", (sp.get(f.key) ?? "") === v ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}>{l}</button>
             ))}
           </div>

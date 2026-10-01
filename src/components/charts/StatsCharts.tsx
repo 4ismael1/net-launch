@@ -12,6 +12,8 @@ const axis = {
   splitLine: { lineStyle: { color: CHART.grid, type: "dashed" as const } },
 };
 const nf = new Intl.NumberFormat("es");
+/** Texto seguro dentro del HTML de los tooltips de ECharts. */
+const esc = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** Lanzamientos por año: éxitos + fallos apilados, con zoom temporal. */
 export function YearsChart({ data }: { data: { year: number; success: number; failure: number }[] }) {
@@ -40,10 +42,10 @@ export function YearsChart({ data }: { data: { year: number; success: number; fa
 export function HBar({ rows, hrefBase, label, color = CHART.accent }: { rows: { id?: number | string; name: string; n: number }[]; hrefBase?: string; label: string; color?: string }) {
   const router = useRouter();
   const short = (t: string) => (t.length > 26 ? `${t.slice(0, 25).trimEnd()}…` : t);
-  const top = rows.slice(0, 12).reverse();
+  const top = useMemo(() => rows.slice(0, 12).reverse(), [rows]); // estable: si no, cada render recrearía la gráfica
   const option = useMemo(() => ({
     grid: { left: 8, right: 44, top: 4, bottom: 4, containLabel: true },
-    tooltip: { trigger: "item", formatter: (p: { dataIndex: number; value: number }) => `${top[p.dataIndex].name}: <b>${nf.format(p.value)}</b>` },
+    tooltip: { trigger: "item", formatter: (p: { dataIndex: number; value: number }) => `${esc(top[p.dataIndex].name)}: <b>${nf.format(p.value)}</b>` },
     xAxis: { type: "value", show: false },
     yAxis: { type: "category", data: top.map((r) => short(r.name)), ...axis, axisLine: { show: false }, axisLabel: { color: CHART.text, fontSize: 12, fontFamily: CHART.sans, width: 190, overflow: "truncate" } },
     series: [{

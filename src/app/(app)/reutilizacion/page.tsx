@@ -10,7 +10,10 @@ import { When } from "@/components/ui/When";
 import { Ticker } from "@/components/ui/Ticker";
 import { WorldDots } from "@/components/map/WorldDots";
 
-export const metadata: Metadata = { title: "Reutilización y aterrizajes" };
+export const metadata: Metadata = {
+  title: "Reutilización y aterrizajes",
+  description: "El próximo aterrizaje de un propulsor, los más veteranos, las zonas de recuperación y los resultados recientes, con datos de Launch Library 2.",
+};
 
 export default function Page() {
   return (
@@ -50,7 +53,7 @@ function Outcome({ ok }: { ok: boolean | null }) {
 async function Content() {
   const d = await getReuse();
   const t = d.totals;
-  const next = d.upcoming.find((u) => u.serial) ?? d.upcoming[0];
+  const next = d.upcoming[0];
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
@@ -62,12 +65,12 @@ async function Content() {
             {next ? (
               <div className="relative">
                 <p className="label flex items-center gap-1.5 !text-accent"><Recycle className="size-3.5" /> Próximo aterrizaje</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl"><span className="num">{next.serial ?? "Propulsor"}</span></h2>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl"><span className="num">{next.serial ?? "Propulsor por confirmar"}</span></h2>
                 <p className="mt-1 text-sm text-fg-muted">
                   <Link href={`/lanzamientos/${next.slug}`} className="text-fg hover:underline">{mission(next.name)}</Link> · {next.type}{next.whereName && ` en ${next.whereName}`}
                 </p>
                 <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-4">
-                  <Ticker at={next.net} className="text-3xl md:text-4xl" />
+                  <Ticker at={next.net} precision={next.precision} className="text-3xl md:text-4xl" />
                   {next.flight && (
                     <div>
                       <p className="label mb-1.5">{next.flight}.º vuelo de este propulsor</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { ExternalLink } from "lucide-react";
 import type { Approach } from "@/lib/data/universe";
@@ -15,6 +15,8 @@ const EARTH_LD = 6371 / LD_KM;
 const clean = (n: string) => n.replace(/^\((.*)\)$/, "$1");
 const ld = (v: number) => v.toLocaleString("es", { maximumFractionDigits: v < 1 ? 2 : 1 });
 const mid = (r: Approach) => r.diamKnown ?? (r.diam ? Math.sqrt(r.diam[0] * r.diam[1]) : null);
+const keyOf = (r: Approach) => r.des + r.date;
+const dayLabel = (r: Approach) => new Date(r.date).toLocaleDateString("es", { day: "numeric", month: "short" });
 
 // Referencias de tamaño (altura o longitud, en metros)
 const REFS: { name: string; m: number; shape: "person" | "bus" | "plane" | "statue" | "tower" | "skyscraper" | "mountain" }[] = [
@@ -30,11 +32,30 @@ const REFS: { name: string; m: number; shape: "person" | "bus" | "plane" | "stat
 export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number }) {
   const live = useNow();
   const now = live ?? at;
-  const upcoming = useMemo(() => rows.filter((r) => Date.parse(r.date) >= at).sort((a, b) => Date.parse(a.date) - Date.parse(b.date)), [rows, at]);
-  const [sel, setSel] = useState<string | null>(upcoming[0] ? upcoming[0].des + upcoming[0].date : null);
+  // Referencia al minuto: con la página conservada horas (Activity), los acercamientos ya pasados salen de la lista
+  // y el «Hoy» del radar sigue siendo hoy. En el servidor y al hidratar vale `at`: mismo SVG.
+  const refT = live === null ? at : Math.floor(live / 60_000) * 60_000;
+  const upcoming = useMemo(() => rows.filter((r) => Date.parse(r.date) >= refT).sort((a, b) => Date.parse(a.date) - Date.parse(b.date)), [rows, refT]);
+  // null = sin elección explícita: la ficha muestra el próximo acercamiento
+  const [sel, setSel] = useState<string | null>(null);
   const [near, setNear] = useState(false);
-  const cur = upcoming.find((r) => r.des + r.date === sel) ?? upcoming[0];
+  const cards = useRef(new Map<string, HTMLButtonElement>());
+  const picked = upcoming.find((r) => keyOf(r) === sel) ?? null;
+  const cur = picked ?? upcoming[0];
   if (!cur) return null;
+
+  /** Elegir desde el radar: la ficha se sincroniza y la tarjeta de la lista se asoma solo si ya está a la vista. */
+  const pickFromRadar = (r: Approach) => {
+    const k = keyOf(r);
+    setSel(k);
+    const el = cards.current.get(k);
+    if (!el) return;
+    const b = el.getBoundingClientRect();
+    if (b.bottom > 0 && b.top < window.innerHeight) {
+      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: smooth ? "smooth" : "auto" });
+    }
+  };
 
   // Radar: distancia REAL (lineal) desde la Tierra; el ángulo indica cuándo pasa (0 = ahora, una vuelta = 60 días)
   const S = 560, C = S / 2, R = 248;
@@ -42,7 +63,7 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
   const rings = near ? [0.5, 1, 1.5, 2] : Array.from({ length: maxLD / 5 }, (_, i) => (i + 1) * 5);
   const q = (n: number) => Math.round(n * 100) / 100; // 2 decimales: mismo SVG en servidor y navegador
   const rr = (v: number) => q((Math.min(v, maxLD) / maxLD) * R);
-  const ang = (t: number) => (((t - at) / (60 * 864e5)) * 360 - 90) * (Math.PI / 180);
+  const ang = (t: number) => (((t - refT) / (60 * 864e5)) * 360 - 90) * (Math.PI / 180);
   const xy = (r: Approach) => { const a = ang(Date.parse(r.date)), d = rr(r.distLd); return [q(C + d * Math.cos(a)), q(C + d * Math.sin(a))] as const; };
   const dotR = (r: Approach) => { const m = mid(r) ?? 20; return q(Math.max(3, Math.min(11, 1.5 + Math.log10(Math.max(1, m)) * 3))); };
 
@@ -75,7 +96,9 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
                 <defs>
                   <radialGradient id="ast-bg"><stop offset="0" stopColor="#1a1916" /><stop offset="1" stopColor="#121211" /></radialGradient>
                 </defs>
-                <circle cx={C} cy={C} r={R} fill="url(#ast-bg)" stroke="var(--color-line-strong)" strokeWidth={t(1)} />
+                {/* Fondo: un clic fuera de los puntos vuelve al próximo acercamiento */}
+                <rect x={0} y={0} width={S} height={S} fill="transparent" onClick={() => setSel(null)} />
+                <circle cx={C} cy={C} r={R} fill="url(#ast-bg)" stroke="var(--color-line-strong)" strokeWidth={t(1)} onClick={() => setSel(null)} />
                 {[0, 15, 30, 45].map((d) => {
                   const a = ((d / 60) * 360 - 90) * (Math.PI / 180);
                   return (
@@ -101,27 +124,55 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
                     <text x={C} y={C + rr(GEO_LD) + t(13)} textAnchor="middle" fontSize={t(9.5)} fill="var(--color-accent)">satélites geoestacionarios</text>
                   </>
                 )}
-                <circle cx={C} cy={C} r={Math.max(t(near ? 6 : 4.5), rr(EARTH_LD))} fill="#7fa3c0" />
+                <circle cx={C} cy={C} r={Math.max(t(near ? 6 : 4.5), rr(EARTH_LD))} fill="#a6a39a" />
                 <text x={C} y={C - Math.max(t(10), rr(EARTH_LD) + t(5))} textAnchor="middle" fontSize={t(11)} fill="var(--color-fg)">Tierra</text>
                 {upcoming.filter((r) => !near || r.distLd <= 2).map((r) => {
                   const [x, y] = xy(r);
                   const on = r === cur;
                   const inside = r.distLd < 1;
+                  const dr = t(dotR(r));
                   return (
-                    <g key={r.des + r.date} className="cursor-pointer" onClick={() => setSel(r.des + r.date)}>
-                      <circle cx={x} cy={y} r={t(14)} fill="transparent" />
-                      {on && <line x1={C} y1={C} x2={x} y2={y} stroke="var(--color-accent)" strokeOpacity={0.6} strokeWidth={t(1)} strokeDasharray={`${t(3)} ${t(3)}`} />}
-                      <circle cx={x} cy={y} r={t(dotR(r))} fill={inside ? "var(--color-accent)" : "#d8d5cc"} fillOpacity={on ? 1 : 0.8} stroke={on ? "#fff" : "var(--color-surface)"} strokeWidth={t(on ? 2 : 1.5)} />
-                      {(on || k > 2.5) && <text x={x + t(dotR(r) + 5)} y={y + t(3.5)} fontSize={t(10.5)} fill={on ? "var(--color-fg)" : "var(--color-fg-muted)"}>{clean(r.name)}</text>}
+                    <g key={keyOf(r)} role="button" tabIndex={0} aria-pressed={r === picked} aria-label={`${clean(r.name)} · ${dayLabel(r)} · ${ld(r.distLd)} DL`} suppressHydrationWarning
+                      className="group cursor-pointer outline-none" onClick={() => pickFromRadar(r)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickFromRadar(r); } }}>
+                      {/* Zona de toque generosa (~12 px en pantalla a cualquier zoom) */}
+                      <circle cx={x} cy={y} r={Math.max(dr + t(4), t(12))} fill="transparent" />
+                      <circle cx={x} cy={y} r={dr + t(5)} fill="none" stroke="var(--color-fg)" strokeWidth={t(1.5)} className="opacity-0 transition-opacity duration-150 group-focus-visible:opacity-90" />
+                      <circle cx={x} cy={y} r={dr} fill={inside ? "var(--color-accent)" : "#d8d5cc"} fillOpacity={on ? 1 : 0.8} stroke={on ? "#fff" : "var(--color-surface)"} strokeWidth={t(on ? 2 : 1.5)}
+                        className="transition-[fill-opacity] duration-200" />
+                      {r !== picked && (
+                        <text x={x + dr + t(5)} y={y + t(3.5)} fontSize={t(10.5)} fill={on ? "var(--color-fg)" : "var(--color-fg-muted)"}
+                          className={clsx("pointer-events-none transition-opacity duration-200", on || k > 2.5 ? "opacity-100" : "opacity-0 group-hover:opacity-80 group-focus-visible:opacity-100")}>{clean(r.name)}</text>
+                      )}
                     </g>
                   );
                 })}
+                {/* Elegido: anillo de acento, línea al centro y etiqueta (nombre, fecha, distancia) dentro del dibujo */}
+                {picked && (() => {
+                  const [x, y] = xy(picked);
+                  const dr = t(dotR(picked));
+                  const name = clean(picked.name), sub = `${dayLabel(picked)} · ${ld(picked.distLd)} DL`;
+                  const w = t(Math.max(name.length * 6.6, sub.length * 5.9) + 14), h = t(34);
+                  const left = x + dr + t(10) + w > S - t(4); // cerca del borde derecho: a la izquierda del punto
+                  const lx = left ? Math.max(t(4), x - dr - t(10) - w) : x + dr + t(10);
+                  const ly = Math.min(S - h - t(4), Math.max(t(4), y - h / 2));
+                  return (
+                    <g key={keyOf(picked)} className="pointer-events-none animate-overlay-in">
+                      <line x1={C} y1={C} x2={x} y2={y} stroke="var(--color-accent)" strokeOpacity={0.6} strokeWidth={t(1)} strokeDasharray={`${t(3)} ${t(3)}`} />
+                      <circle cx={x} cy={y} r={dr + t(5)} fill="none" stroke="var(--color-accent)" strokeWidth={t(2)} />
+                      <circle cx={x} cy={y} r={dr + t(10)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.25} strokeWidth={t(1)} />
+                      <rect x={lx} y={ly} width={w} height={h} rx={t(4)} fill="var(--color-bg)" fillOpacity={0.88} stroke="var(--color-accent)" strokeOpacity={0.45} strokeWidth={t(1)} />
+                      <text x={lx + t(7)} y={ly + t(14)} fontSize={t(11)} fontWeight={600} fill="var(--color-fg)">{name}</text>
+                      <text x={lx + t(7)} y={ly + t(27)} fontSize={t(10)} fill="var(--color-fg-muted)" fontFamily="var(--font-mono)" suppressHydrationWarning>{sub}</text>
+                    </g>
+                  );
+                })()}
               </>
             );
           }}
         </ZoomPan>
         <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line px-4 py-2.5 text-[11px] text-fg-muted">
-          <span>La <span className="text-fg">distancia al centro es real</span> (escala lineal); el ángulo indica <span className="text-fg">cuándo</span> pasa. Acerca con Ctrl/⌘ + rueda, pellizco o doble clic.</span>
+          <span>La <span className="text-fg">distancia al centro es real</span> (escala lineal); el ángulo indica <span className="text-fg">cuándo</span> pasa. Toca un punto para identificarlo. Acerca con Ctrl/⌘ + rueda, pellizco o doble clic.</span>
           <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-accent" /> Más cerca que la Luna</span>
           <span>Tamaño del punto ~ diámetro estimado</span>
         </div>
@@ -130,7 +181,7 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
       {/* Ficha del elegido */}
       <section className="flex flex-col overflow-hidden rounded-lg border border-line bg-surface">
         <header className="border-b border-line px-5 py-4">
-          <p className="label">{upcoming[0] === cur ? "Próximo acercamiento" : "Acercamiento elegido"}</p>
+          <p className="label">{picked && picked !== upcoming[0] ? "Acercamiento elegido" : "Próximo acercamiento"}</p>
           <h2 className="mt-0.5 text-2xl font-semibold tracking-tight">{clean(cur.name)}</h2>
           <p className="mt-1 text-sm text-fg-muted" suppressHydrationWarning>
             {new Date(cur.date).toLocaleString("es", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })} · {relativeTime(cur.date, now)}
@@ -178,8 +229,9 @@ export function ApproachExplorer({ rows, at }: { rows: Approach[]; at: number })
           {upcoming.map((r) => {
             const on = r === cur;
             return (
-              <li key={r.des + r.date}>
-                <button onClick={() => { setSel(r.des + r.date); setNear(r.distLd <= 2 && near); }} className={clsx("flex h-full w-full items-center gap-3 bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-2", on && "!bg-surface-2")}>
+              <li key={keyOf(r)}>
+                <button ref={(el) => { if (el) cards.current.set(keyOf(r), el); else cards.current.delete(keyOf(r)); }} aria-pressed={on}
+                  onClick={() => { setSel(keyOf(r)); setNear(r.distLd <= 2 && near); }} className={clsx("flex h-full w-full items-center gap-3 bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-2", on && "!bg-surface-2")}>
                   {/* Barra de distancia: la Luna marca el 100 % */}
                   <span className="relative h-8 w-1.5 shrink-0 overflow-hidden rounded-full bg-surface-3" title={`${ld(r.distLd)} DL`}>
                     <span className={clsx("absolute inset-x-0 bottom-0 rounded-full", r.distLd < 1 ? "bg-accent" : "bg-fg-muted")} style={{ height: `${Math.max(8, Math.min(100, (1 - Math.min(r.distLd, 20) / 20) * 100))}%` }} />

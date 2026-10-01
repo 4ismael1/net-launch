@@ -1,17 +1,23 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
-// Reloj compartido: un solo intervalo para todas las cuentas regresivas.
+// Reloj compartido: un solo temporizador para todas las cuentas regresivas, alineado al
+// cambio de segundo (sin deriva: el contador nunca se salta un segundo).
 let now = Date.now();
 const subs = new Set<() => void>();
-let timer: ReturnType<typeof setInterval> | null = null;
+let timer: ReturnType<typeof setTimeout> | null = null;
+function tick() {
+  now = Date.now();
+  subs.forEach((s) => s());
+  timer = setTimeout(tick, 1000 - (Date.now() % 1000));
+}
 function subscribeClock(cb: () => void) {
   subs.add(cb);
-  if (!timer) timer = setInterval(() => { now = Date.now(); subs.forEach((s) => s()); }, 1000);
+  if (!timer) { now = Date.now(); timer = setTimeout(tick, 1000 - (now % 1000)); }
   return () => {
     subs.delete(cb);
-    if (!subs.size && timer) { clearInterval(timer); timer = null; }
+    if (!subs.size && timer) { clearTimeout(timer); timer = null; }
   };
 }
 /** Hora actual (ms) en el cliente; null durante SSR/hidratación. */
@@ -27,12 +33,12 @@ export function useTimeZone(): string | null {
 
 /** Preferencia booleana persistida en localStorage (tolerante a fallos). */
 export function useStoredFlag(key: string): [boolean, (v: boolean) => void] {
-  const subscribe = (cb: () => void) => {
+  const subscribe = useCallback((cb: () => void) => {
     window.addEventListener("storage", cb);
     window.addEventListener(`net:${key}`, cb);
     return () => { window.removeEventListener("storage", cb); window.removeEventListener(`net:${key}`, cb); };
-  };
-  const read = () => { try { return localStorage.getItem(key) === "1"; } catch { return false; } };
+  }, [key]);
+  const read = useCallback(() => { try { return localStorage.getItem(key) === "1"; } catch { return false; } }, [key]);
   const value = useSyncExternalStore(subscribe, read, () => false);
   const set = (v: boolean) => {
     try { localStorage.setItem(key, v ? "1" : "0"); } catch {}

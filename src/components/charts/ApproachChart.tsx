@@ -36,7 +36,7 @@ export function ApproachChart({ rows, at }: { rows: Approach[]; at: number }) {
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full touch-none select-none" role="img" aria-label="Asteroides que pasan cerca de la Tierra: distancia frente a fecha" onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full select-none" role="img" aria-label="Asteroides que pasan cerca de la Tierra: distancia frente a fecha" onMouseLeave={() => setHover(null)}>
         {ticks.map((v) => (
           <g key={v}>
             <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="var(--color-line)" strokeDasharray={v === 1 ? undefined : "2 4"} />

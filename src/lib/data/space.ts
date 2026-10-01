@@ -39,7 +39,7 @@ export async function getEvents() {
 }
 
 export type Astronaut = {
-  id: number; name: string; agency: string | null; agencyAbbrev: string | null; agencyId: number | null; nationality: string[];
+  id: number; name: string; status: string | null; agency: string | null; agencyAbbrev: string | null; agencyId: number | null; nationality: string[];
   imageUrl: string | null; timeInSpace: string | null; lastFlight: string | null; flights: number | null; spacewalks: number | null; wiki: string | null;
   bio: string | null; age: number | null; firstFlight: string | null; evaTime: string | null; role: string | null; stationId: number | null;
 };
@@ -66,6 +66,7 @@ export async function getInSpace() {
   const astronauts: Astronaut[] = (space.astronauts ?? []).filter((a: any) => a.type?.name !== "Non-Human").map((a: any) => ({
     id: a.id as number,
     name: a.name as string,
+    status: a.status?.name ?? null,
     agency: a.agency?.name ?? null,
     agencyAbbrev: a.agency?.abbrev ?? null,
     agencyId: a.agency?.id ?? null,

@@ -9,7 +9,10 @@ import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { CalendarChart, HBar, MonthlyChart, YearsChart } from "@/components/charts/StatsCharts";
 import { countryName } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Estadísticas" };
+export const metadata: Metadata = {
+  title: "Estadísticas",
+  description: "Lanzamientos realizados por año, operador, país, vehículo y base, y concentración de la actividad medida con el índice Herfindahl-Hirschman.",
+};
 
 const PERIODS: [Period, string][] = [["12m", "Últimos 12 meses"], ["5a", "Últimos 5 años"], ["todo", "Todo el histórico"]];
 const pct = (x: number) => `${(Math.round(x * 1000) / 10).toLocaleString("es")} %`;
@@ -68,8 +71,8 @@ async function Content({ searchParams }: Pick<PageProps<"/estadisticas">, "searc
               <p><span className="label mr-2">Índice HHI · operadores</span><span className="num text-lg">{nf.format(co.hhi)}</span> <span className="text-fg-muted">({hhiLabel(co.hhi)})</span></p>
               {cc && <p><span className="label mr-2">Índice HHI · países</span><span className="num text-lg">{nf.format(cc.hhi)}</span> <span className="text-fg-muted">({hhiLabel(cc.hhi)})</span></p>}
               <p className="text-xs leading-relaxed text-fg-dim">
-                Índice Herfindahl-Hirschman: suma de las cuotas al cuadrado (0–10 000). Por encima de 2 500 la actividad está dominada por muy pocos actores;
-                esto explica por qué la cobertura mediática se concentra en ellos.
+                Índice Herfindahl-Hirschman: suma de las cuotas al cuadrado (0–10 000). Por encima de 2 500 la actividad está dominada por muy pocos actores,
+                algo coherente con que la cobertura mediática se concentre en ellos.
               </p>
             </div>
           </div>
@@ -110,10 +113,12 @@ async function Content({ searchParams }: Pick<PageProps<"/estadisticas">, "searc
         <div className="p-3"><MonthlyChart data={s.monthly} /></div>
       </Card>
 
-      <Card>
-        <CardHeader title={`Calendario ${year || ""}`} meta="Lanzamientos realizados por día" />
-        <div className="overflow-x-auto p-3"><div className="min-w-[640px]"><CalendarChart data={s.calendar} year={year || new Date(0).getUTCFullYear()} /></div></div>
-      </Card>
+      {year > 0 && (
+        <Card>
+          <CardHeader title={`Calendario ${year}`} meta="Lanzamientos realizados por día" />
+          <div className="overflow-x-auto p-3"><div className="min-w-[640px]"><CalendarChart data={s.calendar} year={year} /></div></div>
+        </Card>
+      )}
     </div>
   );
 }

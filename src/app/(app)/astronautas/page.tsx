@@ -9,7 +9,10 @@ import { countryName, durLabel } from "@/lib/format";
 import Link from "next/link";
 import { getInSpace } from "@/lib/data/space";
 
-export const metadata: Metadata = { title: "Astronautas" };
+export const metadata: Metadata = {
+  title: "Astronautas",
+  description: "Quién está en el espacio ahora y todas las personas que han volado desde 1961: tiempo en órbita, vuelos, paseos espaciales y país.",
+};
 
 export default function Page() {
   return (
@@ -63,14 +66,16 @@ async function Content() {
       <Card><Empty>El catálogo histórico de astronautas se está descargando de LL2 poco a poco (respetando su límite de peticiones). Vuelve en unas horas.</Empty></Card>
     </div>
   );
-  const rec = (key: (a: (typeof rows)[number]) => number, asc = false) => [...rows].filter((a) => key(a) > 0).sort((a, b) => (asc ? key(a) - key(b) : key(b) - key(a)))[0];
+  const rec = (key: (a: (typeof rows)[number]) => number) => [...rows].filter((a) => key(a) > 0).sort((a, b) => key(b) - key(a))[0];
   const records = [
     { label: "Más tiempo en el espacio", a: rec((a) => a.timeInSpace), v: (a: (typeof rows)[number]) => durLabel(a.timeInSpace) },
     { label: "Más tiempo de paseos espaciales", a: rec((a) => a.eva), v: (a: (typeof rows)[number]) => `${durLabel(a.eva)} · ${a.spacewalks} salidas` },
     { label: "Más vuelos", a: rec((a) => a.flights), v: (a: (typeof rows)[number]) => `${a.flights} vuelos` },
-    { label: "Primera persona en el espacio", a: rec((a) => (a.first ? Date.parse(a.first) : 0) > 0 ? Date.parse(a.first!) : 0, true), v: (a: (typeof rows)[number]) => (a.first ? new Date(a.first).getUTCFullYear().toString() : "") },
+    // Fechas anteriores a 1970 son negativas en ms: se busca el mínimo directamente
+    { label: "Primera persona en el espacio", a: rows.filter((a) => a.first && Number.isFinite(Date.parse(a.first))).sort((a, b) => Date.parse(a.first!) - Date.parse(b.first!))[0], v: (a: (typeof rows)[number]) => (a.first ? new Date(a.first).getUTCFullYear().toString() : "") },
   ].filter((r) => r.a);
-  const inSpace = rows.filter((r) => r.inSpace).length;
+  // Misma fuente que el bloque "Ahora en el espacio" (instantánea cada 3 h); el catálogo semanal solo como respaldo
+  const inSpace = space ? now.length : rows.filter((r) => r.inSpace).length;
   const totalYears = rows.reduce((s, r) => s + r.timeInSpace, 0) / (365.25 * 86400);
   const byCountry = new Map<string, number>();
   const byYear = new Map<number, number>();
@@ -134,7 +139,7 @@ async function Content() {
                   <g key={x.y} className="group">
                     <title>{`${x.y}: ${x.n} ${x.n === 1 ? "persona" : "personas"}`}</title>
                     <rect x={i * bw} y={0} width={bw} height={H} fill="transparent" />
-                    <rect x={i * bw + 0.75} y={H - h} width={Math.max(1, bw - 1.5)} height={h} rx={1.5} className="fill-[#9c988e] transition-colors group-hover:fill-accent" />
+                    <rect x={i * bw + 0.75} y={H - h} width={Math.max(1, bw - 1.5)} height={h} rx={1.5} className="fill-fg-muted transition-colors group-hover:fill-accent" />
                     {x.y % 10 === 0 && <text x={i * bw + bw / 2} y={H + 14} textAnchor="middle" fontSize={10} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{x.y}</text>}
                   </g>
                 );

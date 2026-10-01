@@ -16,9 +16,14 @@ export async function generateStaticParams() {
   return ids.length ? ids : [{ id: "1" }]; // Next exige al menos uno (el catálogo puede estar descargándose aún)
 }
 
+// Solo enteros positivos que caben en un int4 de Postgres; lo demás es 404 sin consultar la BD
+const toId = (s: string) => (/^\d{1,9}$/.test(s) ? Number(s) : null);
+
 export async function generateMetadata({ params }: PageProps<"/astronautas/[id]">): Promise<Metadata> {
-  const d = await getAstronaut(Number((await params).id));
-  return { title: d?.astronaut.name ?? "Astronauta" };
+  const id = toId((await params).id);
+  const d = id ? await getAstronaut(id) : null;
+  if (!d) return { title: "Astronauta no encontrado" };
+  return { title: d.astronaut.name, description: `${d.astronaut.name}: vuelos, tiempo en el espacio, paseos espaciales y biografía.` };
 }
 
 export default function Page({ params }: PageProps<"/astronautas/[id]">) {
@@ -32,8 +37,8 @@ export default function Page({ params }: PageProps<"/astronautas/[id]">) {
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : null);
 
 async function Content({ params }: Pick<PageProps<"/astronautas/[id]">, "params">) {
-  const id = Number((await params).id);
-  const d = Number.isInteger(id) ? await getAstronaut(id) : null;
+  const id = toId((await params).id);
+  const d = id ? await getAstronaut(id) : null;
   if (!d) notFound();
   const a = d.astronaut;
   return (

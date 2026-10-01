@@ -9,7 +9,10 @@ import { Streamed } from "@/components/ui/Streamed";
 import { UrlFilters } from "@/components/entity/UrlFilters";
 import { NewsGrid } from "@/components/news/NewsList";
 
-export const metadata: Metadata = { title: "Noticias" };
+export const metadata: Metadata = {
+  title: "Noticias",
+  description: "Noticias de medios especializados y agencias espaciales, agregadas por Spaceflight News API, con búsqueda y filtro por medio.",
+};
 
 export default function Page({ searchParams }: PageProps<"/noticias">) {
   return (
@@ -27,7 +30,7 @@ async function News({ searchParams }: Pick<PageProps<"/noticias">, "searchParams
   await connection(); // al visitar: titulares actuales
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string).slice(0, 80) : undefined);
-  const page = Math.max(1, Number(str("page")) || 1);
+  const page = Math.max(1, Math.floor(Number(str("page"))) || 1);
   const [res, sites] = await Promise.all([getNews({ q: str("q"), site: str("medio"), page }), getNewsSites()]);
   const pages = res ? Math.max(1, Math.ceil(res.count / NEWS_PAGE)) : 1;
   const href = (p: number) => {
@@ -45,11 +48,11 @@ async function News({ searchParams }: Pick<PageProps<"/noticias">, "searchParams
       {res === null ? (
         <Card><Empty>El servicio de noticias no está disponible en este momento.</Empty></Card>
       ) : res.items.length === 0 ? (
-        <Card><Empty>No hay noticias que coincidan con la búsqueda.</Empty></Card>
+        <Card><Empty>{res.count > 0 && page > pages ? <>Esta página no existe. <Link href={href(pages)} className="text-fg underline underline-offset-2">Ir a la página {pages}</Link></> : "No hay noticias que coincidan con la búsqueda."}</Empty></Card>
       ) : (
         <NewsGrid items={res.items} />
       )}
-      {pages > 1 && (
+      {pages > 1 && page <= pages && (
         <nav className="mt-6 flex items-center justify-center gap-2 text-sm" aria-label="Paginación">
           {page > 1 ? <Link href={href(page - 1)} className="inline-flex h-9 items-center gap-1 rounded-md border border-line px-3 hover:bg-surface-2"><ChevronLeft className="size-4" /> Anteriores</Link> : <span />}
           <span className="num px-3 text-fg-muted">{page.toLocaleString("es")} / {pages.toLocaleString("es")}</span>

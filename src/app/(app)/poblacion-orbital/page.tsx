@@ -6,17 +6,20 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Streamed } from "@/components/ui/Streamed";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { PopulationChart } from "@/components/charts/UniverseCharts";
-import { OrbitShells } from "@/components/space/OrbitShells";
+import { OrbitPopulation3D } from "@/components/space/OrbitPopulation3D";
 import { SHELL_NOTES } from "@/components/space/orbit-shells-data";
 
-export const metadata: Metadata = { title: "Población orbital" };
+export const metadata: Metadata = {
+  title: "Población orbital",
+  description: "Satélites activos, etapas abandonadas y fragmentos en órbita terrestre según el catálogo SATCAT de CelesTrak.",
+};
 
 export default function Page() {
   return (
     <div className="mx-auto max-w-[1400px]">
       <PageHeader eyebrow="Universo" title="Población orbital y basura espacial"
         description="Todo lo que la humanidad ha puesto en órbita desde el Sputnik: satélites activos, etapas de cohete abandonadas y fragmentos. Catálogo público SATCAT de CelesTrak, actualizado cada semana." />
-      <Streamed fallback={<div className="grid gap-4"><div className="h-28 animate-pulse rounded-lg border border-line bg-surface" /><div className="h-80 animate-pulse rounded-lg border border-line bg-surface" /></div>}>
+      <Streamed fallback={<div className="grid gap-4"><div className="h-28 animate-pulse rounded-lg border border-line bg-surface" /><div className="h-[clamp(420px,72dvh,780px)] animate-pulse rounded-lg border border-line bg-surface" /></div>}>
         <Content />
       </Streamed>
     </div>
@@ -50,30 +53,18 @@ async function Content() {
         <Kpi label="Ya reentraron" value={nf(s.decayed)} hint={`De ${nf(s.total)} catalogados desde 1957`} />
       </div>
 
-      <section className="overflow-hidden rounded-lg border border-line bg-surface">
-        <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          <div className="border-b border-line bg-[radial-gradient(circle_at_50%_50%,#181816,#121211_70%)] p-3 lg:border-r lg:border-b-0">
-            <OrbitShells byRegime={s.byRegime} activeByRegime={s.activeByRegime} />
+      <OrbitPopulation3D onOrbit={s.onOrbit} catalogByType={s.byType} />
+
+      <section className="grid grid-cols-[minmax(0,1fr)] gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-3" aria-label="Objetos por región orbital según el catálogo">
+        {(["LEO", "MEO", "GEO"] as const).map((r) => (
+          <div key={r} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 bg-surface px-4 py-3.5">
+            <span className="font-medium">{SHELL_NOTES[r].name}</span>
+            <span className="num text-lg">{nf(s.byRegime[r])}</span>
+            <span className="text-xs text-fg-dim">{SHELL_NOTES[r].note}</span>
+            <span className="num text-xs text-accent">{nf(s.activeByRegime[r])} activos</span>
           </div>
-          <div className="flex flex-col justify-center gap-5 p-5 md:p-7">
-            <div>
-              <p className="label">Todo a escala real</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight">Así de lleno está el espacio cercano</h2>
-              <p className="mt-2 text-sm leading-relaxed text-fg-muted">Cada punto representa unos 40 objetos catalogados (al acercarte, unos 10). En <span className="text-accent">naranja</span>, satélites que siguen funcionando; en gris, satélites apagados, etapas de cohete y fragmentos.</p>
-            </div>
-            <ul className="grid gap-3">
-              {(["LEO", "MEO", "GEO"] as const).map((r) => (
-                <li key={r} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-t border-line pt-3">
-                  <span className="font-medium">{SHELL_NOTES[r].name}</span>
-                  <span className="num text-lg">{nf(s.byRegime[r])}</span>
-                  <span className="text-xs text-fg-dim">{SHELL_NOTES[r].note}</span>
-                  <span className="num text-xs text-accent">{nf(s.activeByRegime[r])} activos</span>
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-fg-dim">El {Math.round((s.byRegime.LEO / s.onOrbit) * 100)} % de todo lo que hay en órbita está a menos de 2 000 km de altura: ahí se concentra el riesgo de colisiones.</p>
-          </div>
-        </div>
+        ))}
+        <p className="bg-surface px-4 py-2.5 text-xs text-fg-dim md:col-span-3">El {Math.round((s.byRegime.LEO / s.onOrbit) * 100)} % de todo lo que hay en órbita está a menos de 2 000 km de altura: ahí se concentra el riesgo de colisiones. Cifras del catálogo SATCAT completo.</p>
       </section>
 
       <Card>

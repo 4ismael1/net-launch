@@ -35,8 +35,8 @@ export async function getStats(period: Period) {
       WHERE ${DONE} AND ${w} GROUP BY loc.id, loc.name ORDER BY n DESC LIMIT 12`),
     db.execute<{ month: string; done: number; planned: number }>(sql`
       SELECT to_char(m, 'YYYY-MM') AS month,
-        (SELECT count(*)::int FROM launches WHERE date_trunc('month', net) = m AND status_abbrev IN ('Success','Failure','Partial Failure')) AS done,
-        (SELECT count(*)::int FROM launches WHERE date_trunc('month', net) = m AND status_abbrev IN ('Go','TBC') AND net > now()) AS planned
+        (SELECT count(*)::int FROM launches WHERE net >= m AND net < m + interval '1 month' AND status_abbrev IN ('Success','Failure','Partial Failure')) AS done,
+        (SELECT count(*)::int FROM launches WHERE net >= m AND net < m + interval '1 month' AND status_abbrev IN ('Go','TBC') AND net > now()) AS planned
       FROM generate_series(date_trunc('month', now()) - interval '23 months', date_trunc('month', now()) + interval '3 months', interval '1 month') m
       ORDER BY 1`),
     db.execute<{ synced: number; oldest: string | null }>(sql`

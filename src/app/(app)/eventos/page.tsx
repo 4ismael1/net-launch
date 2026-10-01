@@ -6,10 +6,13 @@ import { Card, CardHeader, Empty } from "@/components/ui/Card";
 import { LocalTime } from "@/components/launch/LocalTime";
 import { Countdown } from "@/components/launch/Countdown";
 
-export const metadata: Metadata = { title: "Eventos" };
+export const metadata: Metadata = {
+  title: "Eventos",
+  description: "Acoplamientos, paseos espaciales, amerizajes, pruebas y otros hitos espaciales que no son lanzamientos, con su cuenta regresiva y transmisión.",
+};
 
 const TYPE_ES: Record<string, string> = {
-  Docking: "Acoplamiento", Undocking: "Desacoplamiento", "EVA": "Caminata espacial (EVA)", Spacewalk: "Caminata espacial",
+  Docking: "Acoplamiento", Undocking: "Desacoplamiento", "EVA": "Paseo espacial (EVA)", Spacewalk: "Paseo espacial",
   Landing: "Aterrizaje", "Static Fire": "Encendido estático", "Test Flight": "Vuelo de prueba", Berthing: "Atraque",
   Unberthing: "Desatraque", "Press Event": "Rueda de prensa", "Celestial Event": "Evento astronómico", Relocation: "Reubicación",
   "Moon Landing": "Alunizaje", Splashdown: "Amerizaje", "Spacecraft Event": "Evento de nave", Flyby: "Sobrevuelo",
@@ -21,7 +24,7 @@ export default async function Page() {
   return (
     <div className="mx-auto max-w-[1400px]">
       <PageHeader eyebrow="Explorar" title="Eventos espaciales"
-        description="Acoplamientos, caminatas espaciales, amerizajes, pruebas y otros hitos que no son lanzamientos. Fuente: Launch Library 2." />
+        description="Acoplamientos, paseos espaciales, amerizajes, pruebas y otros hitos que no son lanzamientos. Fuente: Launch Library 2 (descripciones en su idioma original, inglés)." />
       {!data ? (
         <Card><Empty>Los eventos se cargarán en la próxima sincronización.</Empty></Card>
       ) : (

@@ -24,8 +24,10 @@ function saveObs(o: Obs | null) {
   try { if (o) localStorage.setItem(KEY, JSON.stringify(o)); else localStorage.removeItem(KEY); } catch {}
   subs.forEach((s) => s());
 }
+// Suscripción estable (una función nueva en cada render obligaría a React a re-suscribirse cada segundo)
+const subscribeObs = (cb: () => void) => { subs.add(cb); return () => { subs.delete(cb); }; };
 function useObserver(): Obs {
-  const raw = useSyncExternalStore((cb) => { subs.add(cb); return () => subs.delete(cb); }, readObs, () => null);
+  const raw = useSyncExternalStore(subscribeObs, readObs, () => null);
   return useMemo(() => {
     try { return raw ? (JSON.parse(raw) as Obs) : DEFAULT; } catch { return DEFAULT; }
   }, [raw]);
@@ -141,7 +143,10 @@ export function TonightView({ sats }: { sats: OMM[] }) {
     };
     const t = setTimeout(step, 30);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [passKey, night, recs, obs]);
+    // Solo al cambiar la noche o el lugar (passKey los resume): `night` se renueva cada 10 min y reiniciar el cálculo
+    // vaciaba la lista y el paso elegido mientras se rehacía
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passKey, recs]);
   const shownPasses = passes?.key === passKey ? passes : null;
 
   // Cúpula: hora elegida (por defecto, ahora si es de noche; si no, el fin del crepúsculo civil)
@@ -167,6 +172,7 @@ export function TonightView({ sats }: { sats: OMM[] }) {
     return r ? { name: prettyName(selPass.name), pts: passTrack(r.rec, obs, selPass.start.getTime(), selPass.end.getTime(), 8) } : null;
   }, [selPass, recs, obs]);
   const choose = (p: Pass & { norad: number }) => { setSelKey(pkey(p)); setPick(p.peak.getTime()); };
+  const moonUpInterval = useMemo(() => (night ? moonInterval(o, night) : null), [o, night]);
 
   const locate = () => {
     if (!navigator.geolocation) { setGeoErr("Tu navegador no permite la ubicación."); return; }
@@ -223,10 +229,20 @@ export function TonightView({ sats }: { sats: OMM[] }) {
         <div className="mb-2 flex items-baseline justify-between"><h2 className="label !text-fg-muted">La noche, hora a hora</h2><span className="text-[11px] text-fg-dim">Toca la barra para ver el cielo a esa hora</span></div>
         <div className="relative">
           <button
-            aria-label="Elegir hora de la noche"
+            aria-label={`Elegir hora de la noche: ${hm(domeT)} (flechas: ±15 min)`}
             className="relative block h-9 w-full cursor-pointer overflow-hidden rounded-md"
             style={{ background: twilightGradient(night, pos) }}
-            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPick(night.set.getTime() + ((e.clientX - r.left) / r.width) * span); }}
+            onClick={(e) => {
+              if (e.detail === 0) return; // Intro/Espacio: sin posición de puntero (se usan las flechas)
+              const r = e.currentTarget.getBoundingClientRect();
+              setPick(night.set.getTime() + ((e.clientX - r.left) / r.width) * span);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+              e.preventDefault();
+              const t = domeT.getTime() + (e.key === "ArrowRight" ? 1 : -1) * 15 * 60_000;
+              setPick(Math.min(night.rise.getTime(), Math.max(night.set.getTime(), t)));
+            }}
           >
             {shownPasses?.list.map((p) => (
               <span key={`${p.norad}-${p.start.getTime()}`} className="absolute top-1 bottom-1 w-[3px] rounded-full bg-fg" style={{ left: `${pos(p.peak)}%` }} title={`${p.name} · ${hm(p.start)}`} />
@@ -235,7 +251,7 @@ export function TonightView({ sats }: { sats: OMM[] }) {
             <span className="absolute inset-y-0 w-px bg-fg/80 outline outline-1 outline-fg/30" style={{ left: `${pos(domeT)}%` }} />
           </button>
           <div className="mt-2 grid gap-1">
-            {[{ name: "Luna", up: moonInterval(o, night) }, ...visiblePlanets.map((p) => ({ name: p.name, up: p.up }))].map((r) => r.up && (
+            {[{ name: "Luna", up: moonUpInterval }, ...visiblePlanets.map((p) => ({ name: p.name, up: p.up }))].map((r) => r.up && (
               <div key={r.name} className="relative h-4 text-[10px]">
                 <span className="absolute inset-y-[5px] rounded-full bg-fg-muted/40" style={{ left: `${pos(r.up[0])}%`, width: `${(pos(r.up[1])! - pos(r.up[0])!)}%` }} />
                 <span className="absolute -top-px text-fg-muted" style={{ left: `${Math.min(88, pos(r.up[0])!)}%` }}>&nbsp;{r.name}</span>

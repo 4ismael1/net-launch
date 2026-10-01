@@ -4,17 +4,27 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Streamed } from "@/components/ui/Streamed";
 import { MapPin } from "lucide-react";
-import { getLocation } from "@/lib/data/entities";
+import { getLocation, listLocations } from "@/lib/data/entities";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { Facts, LaunchListCard, YearBars } from "@/components/entity/shared";
 import { MiniMap } from "@/components/map/MiniMap";
 import { WeatherCard } from "@/components/weather/WeatherCard";
 import { Flag } from "@/components/ui/Flag";
-import { countryName, padName } from "@/lib/format";
+import { countryName, padName, plural } from "@/lib/format";
+
+// Solo enteros positivos que caben en un int4 de Postgres; lo demás es 404 sin consultar la BD
+const toId = (s: string) => (/^\d{1,9}$/.test(s) ? Number(s) : null);
+
+export async function generateStaticParams() {
+  const ids = (await listLocations()).slice(0, 10).map((b) => ({ id: String(b.id) }));
+  return ids.length ? ids : [{ id: "12" }]; // Next exige al menos uno
+}
 
 export async function generateMetadata({ params }: PageProps<"/bases/[id]">): Promise<Metadata> {
-  const d = await getLocation(Number((await params).id));
-  return { title: d?.loc.name ?? "Base" };
+  const id = toId((await params).id);
+  const d = id ? await getLocation(id) : null;
+  if (!d) return { title: "Base no encontrada" };
+  return { title: d.loc.name, description: `${d.loc.name}: plataformas, próximos lanzamientos, actividad por año y operadores.` };
 }
 
 export default function Page({ params }: PageProps<"/bases/[id]">) {
@@ -26,8 +36,8 @@ export default function Page({ params }: PageProps<"/bases/[id]">) {
 }
 
 async function Content({ params }: Pick<PageProps<"/bases/[id]">, "params">) {
-  const id = Number((await params).id);
-  const d = Number.isInteger(id) ? await getLocation(id) : null;
+  const id = toId((await params).id);
+  const d = id ? await getLocation(id) : null;
   if (!d) notFound();
   const { loc } = d;
   const upcomingPads = d.pads.filter((p) => p.upcoming > 0).length;
@@ -42,11 +52,11 @@ async function Content({ params }: Pick<PageProps<"/bases/[id]">, "params">) {
           <p className="mt-1.5 text-sm text-fg-muted"><Flag code={loc.countryCode} /> {countryName(loc.countryCode) ?? loc.countryName ?? "—"}
             {loc.latitude != null && loc.longitude != null && <span className="num text-fg-dim"> · {loc.latitude.toFixed(4)}°, {loc.longitude.toFixed(4)}°</span>}</p>
         </div>
-        {firstPad && <Link href={`/mapa?pad=${firstPad.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-fg px-3.5 text-sm font-medium text-bg hover:opacity-90"><MapPin className="size-4" /> Abrir en el mapa</Link>}
+        {firstPad && <Link href={`/mapa?pad=${firstPad.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-fg px-3.5 text-sm font-medium text-bg hover:opacity-90"><MapPin className="size-4" /> Ver en el mapa</Link>}
       </header>
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
-        <Kpi label="Lanzamientos" value={(loc.totalLaunchCount ?? 0).toLocaleString("es")} hint="Total según LL2" />
+        <Kpi label="Lanzamientos" value={loc.totalLaunchCount?.toLocaleString("es") ?? "—"} hint="Total según LL2" />
         <Kpi label="Plataformas" value={d.pads.length} />
         <Kpi label="Con próximos" value={upcomingPads} hint="Plataformas" />
         <Kpi label="Operadores" value={d.operators.length} hint="Registrados aquí" />
@@ -54,7 +64,8 @@ async function Content({ params }: Pick<PageProps<"/bases/[id]">, "params">) {
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
-          <About text={loc.description} wikiUrl={d.pads.find((p) => p.wiki)?.wiki} />
+          {/* El artículo de una plataforma solo vale como el de la base si es la única */}
+          <About text={loc.description} wikiUrl={d.pads.length === 1 ? d.pads[0].wiki : null} />
           <LaunchListCard title="Próximos lanzamientos" rows={d.upcoming} empty="Sin lanzamientos programados." more={`/lanzamientos?base=${loc.id}`} />
           <LaunchListCard title="Lanzamientos recientes" rows={d.recent} empty="Sin resultados registrados todavía." more={`/lanzamientos?vista=pasados&base=${loc.id}`} />
         </div>
@@ -72,8 +83,8 @@ async function Content({ params }: Pick<PageProps<"/bases/[id]">, "params">) {
                 {d.pads.map((p) => (
                   <li key={p.id}>
                     <Link href={`/mapa?pad=${p.id}`} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-surface-2">
-                      <span className="min-w-0"><span className="block truncate">{padName(p.name)}</span><span className="text-xs text-fg-dim">{p.active === false ? "Inactiva" : "Activa"} · {p.total} lanzamientos</span></span>
-                      {p.upcoming > 0 && <span className="num shrink-0 text-xs text-accent">{p.upcoming} próximos</span>}
+                      <span className="min-w-0"><span className="block truncate">{padName(p.name)}</span><span className="text-xs text-fg-dim">{p.active === false ? "Inactiva" : "Activa"} · {plural(p.total ?? 0, "lanzamiento", "lanzamientos")}</span></span>
+                      {p.upcoming > 0 && <span className="num shrink-0 text-xs text-accent">{plural(p.upcoming, "próximo", "próximos")}</span>}
                     </Link>
                   </li>
                 ))}

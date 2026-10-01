@@ -10,6 +10,7 @@ import { Facts } from "@/components/entity/shared";
 import { OrbitViewer } from "@/components/orbit/OrbitViewer";
 import { SatLive } from "@/components/orbit/SatLive";
 import { LocalTime } from "@/components/launch/LocalTime";
+import { OWNER_NAME } from "@/lib/satcat";
 
 export function generateStaticParams() {
   return [{ norad: "25544" }];
@@ -18,7 +19,9 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps<"/satelites/[norad]">): Promise<Metadata> {
   const n = Number((await params).norad);
   const d = Number.isInteger(n) ? await getSatellite(n) : null;
-  return { title: d?.omm?.OBJECT_NAME ?? d?.meta?.OBJECT_NAME ?? "Satélite" };
+  const name = d?.omm?.OBJECT_NAME ?? d?.meta?.OBJECT_NAME;
+  if (!name) return { title: "Satélite" };
+  return { title: name, description: `${name} (NORAD ${n}): posición calculada (SGP4) a partir de elementos orbitales públicos de CelesTrak, órbita y ficha SATCAT.` };
 }
 
 export default function Page({ params }: PageProps<"/satelites/[norad]">) {
@@ -30,6 +33,7 @@ export default function Page({ params }: PageProps<"/satelites/[norad]">) {
 }
 
 const nf = (v: number, d = 0) => v.toLocaleString("es", { maximumFractionDigits: d });
+const day = (d: string | null | undefined) => (d ? new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : null);
 
 async function Content({ params }: Pick<PageProps<"/satelites/[norad]">, "params">) {
   const norad = Number((await params).norad);
@@ -56,7 +60,7 @@ async function Content({ params }: Pick<PageProps<"/satelites/[norad]">, "params
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{name}</h1>
           <p className="mt-1.5 text-sm text-fg-muted">
             {meta ? `${OBJECT_TYPES[meta.OBJECT_TYPE] ?? meta.OBJECT_TYPE} · ${OPS_STATUS[meta.OPS_STATUS_CODE] ?? "Estado desconocido"}` : "Sin ficha SATCAT"}
-            {decayed && <span className="text-failure"> · Reentró el {meta!.DECAY_DATE}</span>}
+            {decayed && <span className="text-failure"> · Reentró el {day(meta!.DECAY_DATE)}</span>}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -101,12 +105,12 @@ async function Content({ params }: Pick<PageProps<"/satelites/[norad]">, "params
         <Card>
           <CardHeader title="Ficha del catálogo (SATCAT)" />
           <Facts items={[
-            ["Propietario / país (código SATCAT)", meta.OWNER],
-            ["Fecha de lanzamiento", meta.LAUNCH_DATE],
+            ["Propietario / país", OWNER_NAME[meta.OWNER] ? `${OWNER_NAME[meta.OWNER]} (${meta.OWNER})` : meta.OWNER],
+            ["Fecha de lanzamiento", day(meta.LAUNCH_DATE)],
             ["Sitio de lanzamiento (código)", meta.LAUNCH_SITE],
             ["Tipo de objeto", OBJECT_TYPES[meta.OBJECT_TYPE] ?? meta.OBJECT_TYPE],
             ["Sección radar (RCS)", meta.RCS ? `${nf(meta.RCS, 2)} m²` : null],
-            ["Reentrada", meta.DECAY_DATE || null],
+            ["Reentrada", day(meta.DECAY_DATE)],
           ]} />
         </Card>
       )}

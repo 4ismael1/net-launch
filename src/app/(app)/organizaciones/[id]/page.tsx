@@ -4,15 +4,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Streamed } from "@/components/ui/Streamed";
 import { ExternalLink } from "lucide-react";
-import { getOrganization, typeLabel } from "@/lib/data/entities";
+import { getOrganization, listOrganizations, typeLabel } from "@/lib/data/entities";
 import { Card, CardHeader, Empty, Kpi } from "@/components/ui/Card";
 import { Facts, LaunchListCard, Logo, YearBars } from "@/components/entity/shared";
 import { Flag } from "@/components/ui/Flag";
 import { countryName } from "@/lib/format";
 
+// Solo enteros positivos que caben en un int4 de Postgres; lo demás es 404 sin consultar la BD
+const toId = (s: string) => (/^\d{1,9}$/.test(s) ? Number(s) : null);
+
+export async function generateStaticParams() {
+  const ids = (await listOrganizations({ orden: "activas" })).slice(0, 10).map((o) => ({ id: String(o.id) }));
+  return ids.length ? ids : [{ id: "121" }]; // Next exige al menos uno
+}
+
 export async function generateMetadata({ params }: PageProps<"/organizaciones/[id]">): Promise<Metadata> {
-  const d = await getOrganization(Number((await params).id));
-  return { title: d?.org.name ?? "Organización" };
+  const id = toId((await params).id);
+  const d = id ? await getOrganization(id) : null;
+  if (!d) return { title: "Organización no encontrada" };
+  return { title: d.org.name, description: (d.org.descriptionEs ?? d.org.description)?.slice(0, 160) ?? `${d.org.name}: lanzamientos, cohetes y bases.` };
 }
 
 export default function Page({ params }: PageProps<"/organizaciones/[id]">) {
@@ -24,8 +34,8 @@ export default function Page({ params }: PageProps<"/organizaciones/[id]">) {
 }
 
 async function Content({ params }: Pick<PageProps<"/organizaciones/[id]">, "params">) {
-  const id = Number((await params).id);
-  const d = Number.isInteger(id) ? await getOrganization(id) : null;
+  const id = toId((await params).id);
+  const d = id ? await getOrganization(id) : null;
   if (!d) notFound();
   const { org } = d;
   const done = (org.successfulLaunches ?? 0) + (org.failedLaunches ?? 0);

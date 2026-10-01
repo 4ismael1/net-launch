@@ -23,19 +23,24 @@ async function fetchGP(query: string): Promise<OMM[] | null> {
   }
 }
 
+const LONG = { stale: 3600, revalidate: 6 * 3600, expire: 24 * 3600 };
+const SHORT = { stale: 60, revalidate: 600, expire: 3600 };
+
 /** Objetos de un lanzamiento por designador internacional (yyyy-nnn). null = servicio no disponible. */
 export async function getLaunchObjects(designator: string) {
   "use cache";
-  cacheLife({ stale: 3600, revalidate: 6 * 3600, expire: 24 * 3600 });
-  if (!/^\d{4}-\d{3}$/.test(designator)) return [];
-  return fetchGP(`INTDES=${designator}`);
+  if (!/^\d{4}-\d{3}$/.test(designator)) { cacheLife("weeks"); return []; }
+  const out = await fetchGP(`INTDES=${designator}`);
+  // Un fallo puntual no se guarda horas: caché corta para reintentar pronto
+  cacheLife(out === null ? SHORT : LONG);
+  return out;
 }
 
 /** Estaciones tripuladas: ISS (25544) y Tiangong (48274). */
 export async function getStationsGP() {
   "use cache";
-  cacheLife({ stale: 3600, revalidate: 6 * 3600, expire: 24 * 3600 });
   const [iss, css] = await Promise.all([fetchGP("CATNR=25544"), fetchGP("CATNR=48274")]);
+  cacheLife(iss === null || css === null ? SHORT : LONG);
   return [...(iss ?? []), ...(css ?? [])];
 }
 

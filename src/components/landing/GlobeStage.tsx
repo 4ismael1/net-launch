@@ -77,7 +77,9 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
     for (let lon = -180; lon < 180; lon += 30) spin.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 61 }, (_, i) => ll(lon, i * 3 - 90, 1.001))), gridMat));
 
     // Continentes
+    let alive = true;
     import("world-atlas/land-110m.json").then((m) => {
+      if (!alive) return; // la escena ya se desmontó
       const topo = (m.default ?? m) as unknown as Topology;
       const land = feature(topo, topo.objects.land) as unknown as GeoJSON.FeatureCollection;
       const mat = new THREE.LineBasicMaterial({ color: 0x8f8b82, transparent: true, opacity: 0.75 });
@@ -183,8 +185,17 @@ export const GlobeStage = forwardRef<GlobeHandle, { pads: Pad[] }>(function Glob
     raf = requestAnimationFrame(loop);
 
     return () => {
+      alive = false;
       cancelAnimationFrame(raf);
       ro.disconnect();
+      // Liberar GPU: geometrías, materiales, textura y el propio contexto WebGL (si no, cada visita suma uno).
+      scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        m.geometry?.dispose();
+        (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => x?.dispose());
+      });
+      tex.dispose();
+      renderer.forceContextLoss();
       renderer.dispose();
       el.innerHTML = "";
     };

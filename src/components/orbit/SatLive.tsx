@@ -1,7 +1,7 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MLMap } from "maplibre-gl";
 import { Crosshair, Eye, EyeOff, LocateFixed, Sun, Moon } from "lucide-react";
 import clsx from "clsx";
@@ -11,12 +11,13 @@ import {
 import type { OMM } from "@/lib/orbit";
 import { computePasses, dir, type Pass } from "@/lib/passes";
 import { neutralizeBasemap, MAP_LOCALE } from "@/components/map/basemap";
+import { sgp4Note } from "./orbitMeta";
 
 const STYLE = process.env.NEXT_PUBLIC_MAPTILER_KEY
   ? `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${process.env.NEXT_PUBLIC_MAPTILER_KEY}`
   : "https://tiles.openfreemap.org/styles/dark";
 
-type State = { lat: number; lon: number; alt: number; speed: number; sunlit: boolean };
+type State = { t: number; lat: number; lon: number; alt: number; speed: number; sunlit: boolean };
 
 function stateAt(rec: SatRec, d: Date): State | null {
   const pv = propagate(rec, d);
@@ -25,7 +26,7 @@ function stateAt(rec: SatRec, d: Date): State | null {
   const geo = eciToGeodetic(pv.position, g);
   const sunlit = shadowFraction(sunPos(jday(d)).rsun, pv.position) < 0.5;
   const v = pv.velocity;
-  return { lat: degreesLat(geo.latitude), lon: degreesLong(geo.longitude), alt: geo.height, speed: Math.hypot(v.x, v.y, v.z), sunlit };
+  return { t: d.getTime(), lat: degreesLat(geo.latitude), lon: degreesLong(geo.longitude), alt: geo.height, speed: Math.hypot(v.x, v.y, v.z), sunlit };
 }
 
 /** Traza sobre el suelo partida en el antimeridiano. */
@@ -42,6 +43,11 @@ function groundTrack(rec: SatRec, from: Date, minutes: number, stepS = 30) {
   return lines.filter((l) => l.length > 1);
 }
 
+const toFC = (ls: [number, number][][]): GeoJSON.FeatureCollection => ({ type: "FeatureCollection", features: ls.map((c) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: c } })) });
+const pointFC = (p: { lat: number; lon: number } | null): GeoJSON.FeatureCollection => ({
+  type: "FeatureCollection", features: p ? [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [p.lon, p.lat] } }] : [],
+});
+
 export function SatLive({ omm }: { omm: OMM }) {
   const rec = useMemo(() => json2satrec(omm as never) as SatRec, [omm]);
   const [s, setS] = useState<State | null>(null);
@@ -50,7 +56,14 @@ export function SatLive({ omm }: { omm: OMM }) {
   const [passes, setPasses] = useState<Pass[] | null>(null);
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
+  const sRef = useRef<State | null>(null);
+  const obsRef = useRef<{ lat: number; lon: number } | null>(null);
   const periodMin = 1440 / omm.MEAN_MOTION;
+  // Recorrido anterior (1/3) y próximas órbitas (1,5 vueltas) desde ahora
+  const tracks = useCallback(() => {
+    const now = Date.now(), span = Math.min(Math.max(periodMin * 1.5, 100), 1440);
+    return [toFC(groundTrack(rec, new Date(now - (span / 3) * 60_000), span / 3)), toFC(groundTrack(rec, new Date(now), span))] as const;
+  }, [rec, periodMin]);
 
   // Estado cada segundo
   useEffect(() => {
@@ -72,13 +85,12 @@ export function SatLive({ omm }: { omm: OMM }) {
       map.on("style.load", () => {
         const m = map!;
         neutralizeBasemap(m, ["past", "future", "sat-halo", "sat", "obs"]);
-        const now = new Date();
-        const span = Math.min(Math.max(periodMin * 1.5, 100), 1440);
-        const toFC = (ls: [number, number][][]): GeoJSON.FeatureCollection => ({ type: "FeatureCollection", features: ls.map((c) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: c } })) });
-        m.addSource("past", { type: "geojson", data: toFC(groundTrack(rec, new Date(now.getTime() - (span / 3) * 60_000), span / 3)) });
-        m.addSource("future", { type: "geojson", data: toFC(groundTrack(rec, now, span)) });
-        m.addSource("sat", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-        m.addSource("obs", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        const [past, future] = tracks();
+        m.addSource("past", { type: "geojson", data: past });
+        m.addSource("future", { type: "geojson", data: future });
+        // Al recrearse el mapa (volver a la página) se pintan ya el satélite y el observador conocidos
+        m.addSource("sat", { type: "geojson", data: pointFC(sRef.current) });
+        m.addSource("obs", { type: "geojson", data: pointFC(obsRef.current) });
         m.addLayer({ id: "past", type: "line", source: "past", paint: { "line-color": "#8f8b82", "line-width": 1.2, "line-dasharray": [2, 2], "line-opacity": 0.7 } });
         m.addLayer({ id: "future", type: "line", source: "future", paint: { "line-color": "#ff5b1f", "line-width": 1.6, "line-opacity": 0.85 } });
         m.addLayer({ id: "sat-halo", type: "circle", source: "sat", paint: { "circle-color": "#ff5b1f", "circle-radius": 12, "circle-opacity": 0.2 } });
@@ -88,17 +100,34 @@ export function SatLive({ omm }: { omm: OMM }) {
       });
       mapRef.current = map;
     });
-    return () => { cancelled = true; map?.remove(); mapRef.current = null; };
-  }, [rec, periodMin]);
+    // La traza se renueva cada 10 min: con la página abierta horas, el satélite nunca se sale del tramo dibujado
+    const iv = setInterval(() => {
+      const m = mapRef.current;
+      if (!m?.getSource("past")) return;
+      const [past, future] = tracks();
+      (m.getSource("past") as GeoJSONSource).setData(past);
+      (m.getSource("future") as GeoJSONSource).setData(future);
+    }, 10 * 60_000);
+    return () => { cancelled = true; clearInterval(iv); map?.remove(); mapRef.current = null; };
+  }, [tracks]);
 
   useEffect(() => {
-    const src = mapRef.current?.getSource("sat") as GeoJSONSource | undefined;
-    if (s && src) src.setData({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [s.lon, s.lat] } }] });
+    sRef.current = s;
+    (mapRef.current?.getSource("sat") as GeoJSONSource | undefined)?.setData(pointFC(s));
   }, [s]);
   useEffect(() => {
-    const src = mapRef.current?.getSource("obs") as GeoJSONSource | undefined;
-    if (obs && src) src.setData({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [obs.lon, obs.lat] } }] });
+    obsRef.current = obs;
+    (mapRef.current?.getSource("obs") as GeoJSONSource | undefined)?.setData(pointFC(obs));
   }, [obs]);
+
+  // Pasos: se calculan al conocer la ubicación y se renuevan cada 10 min (los ya terminados desaparecen)
+  useEffect(() => {
+    if (!obs) return;
+    const run = () => setPasses(computePasses(rec, obs));
+    const first = setTimeout(run, 10);
+    const iv = setInterval(run, 10 * 60_000);
+    return () => { clearTimeout(first); clearInterval(iv); };
+  }, [rec, obs]);
 
   const locate = () => {
     setGeoErr(null);
@@ -108,7 +137,6 @@ export function SatLive({ omm }: { omm: OMM }) {
         // Redondeo a ~1 km: suficiente para los pasos y más privado. No se envía a ningún servidor.
         const o = { lat: Math.round(p.coords.latitude * 100) / 100, lon: Math.round(p.coords.longitude * 100) / 100 };
         setObs(o);
-        setTimeout(() => setPasses(computePasses(rec, o)), 10);
       },
       () => setGeoErr("No se pudo obtener tu ubicación (permiso denegado o no disponible)."),
       { enableHighAccuracy: false, timeout: 10_000 },
@@ -128,6 +156,7 @@ export function SatLive({ omm }: { omm: OMM }) {
         <Cell k="Velocidad" v={s ? `${f(s.speed, 2)} km/s` : "—"} hint={s ? `${f(s.speed * 3600)} km/h` : undefined} />
         <Cell k="Iluminación" v={s ? (s.sunlit ? "Al sol" : "En sombra") : "—"} icon={s ? (s.sunlit ? Sun : Moon) : undefined} />
       </div>
+      <p className="-mt-2 text-[11px] text-fg-dim" suppressHydrationWarning>{sgp4Note([omm])}. No es telemetría en vivo.</p>
 
       <section className="overflow-hidden rounded-lg border border-line bg-surface">
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
@@ -164,7 +193,7 @@ export function SatLive({ omm }: { omm: OMM }) {
               <tbody className="divide-y divide-line">
                 {passes.map((p) => (
                   <tr key={p.start.toISOString()} className={clsx(p.visible && "bg-accent-soft")}>
-                    <td className="num px-4 py-2">{tf.format(p.start)}</td>
+                    <td className="num px-4 py-2">{tf.format(p.start)}{s && p.start.getTime() <= s.t && <span className="ml-1.5 text-[11px] text-accent">en curso</span>}</td>
                     <td className="num px-4 py-2 text-fg-muted">{hf.format(p.peak)}</td>
                     <td className="num px-4 py-2 text-fg-muted">{hf.format(p.end)}</td>
                     <td className="num px-4 py-2">{f(p.maxEl)}°</td>

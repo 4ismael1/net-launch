@@ -28,7 +28,10 @@ export function computePasses(rec: SatRec, obs: { lat: number; lon: number }, op
   const max = opts.max ?? 10;
   const out: Pass[] = [];
   let cur: Pass | null = null;
-  for (let t = from; t < to; t += step) {
+  // Se empieza 20 min antes: un paso ya en curso en `from` conserva su salida real (inicio y acimut);
+  // los que terminaron antes de `from` se descartan al cerrarlos.
+  const keep = (p: Pass) => p.end.getTime() >= from;
+  for (let t = from - 20 * 60_000; t < to; t += step) {
     const d = new Date(t);
     const pv = propagate(rec, d);
     if (!pv?.position || typeof pv.position === "boolean") continue;
@@ -44,12 +47,12 @@ export function computePasses(rec: SatRec, obs: { lat: number; lon: number }, op
       if (el > cur.maxEl) { cur.maxEl = el; cur.peak = d; cur.azPeak = az; }
       cur.end = d; cur.azEnd = az;
     } else if (cur) {
-      out.push(cur);
+      if (keep(cur)) out.push(cur);
       cur = null;
       if (out.length >= max) break;
     }
   }
-  if (cur) out.push(cur);
+  if (cur && keep(cur)) out.push(cur);
   return out;
 }
 

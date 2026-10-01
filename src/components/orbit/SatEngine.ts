@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, type SatRec } from "@/lib/sgp4";
 import type { OMM } from "@/lib/orbit";
-import { RE, buildEarth, eciToThree, makeRenderer, orbitControls, orbitPath, screenScale } from "./earth";
+import { RE, buildEarth, disposeScene, eciToThree, makeRenderer, orbitControls, orbitPath, screenScale } from "./earth";
 import { ICON_KINDS, buildAtlas, type IconKind } from "./satIcons";
 
 export type EngineSat = { omm: OMM; color: string; group: string; icon: IconKind };
@@ -38,15 +38,16 @@ export class SatEngine {
   private lastReal = Date.now();
   private atlas: THREE.CanvasTexture | null = null;
   private material: THREE.ShaderMaterial | null = null;
+  private listeners = new AbortController();
   onPick: (norad: number | null) => void = () => {};
   onHover: (name: string | null, x: number, y: number) => void = () => {};
 
-  constructor(private host: HTMLElement) {
+  constructor(private host: HTMLElement, onHint?: () => void) {
     const r = makeRenderer(host, this.camera);
     this.renderer = r.renderer;
     this.disposeRenderer = r.dispose;
     this.earth = buildEarth(this.scene);
-    this.ctl = orbitControls(host, this.camera, 4.2);
+    this.ctl = orbitControls(host, this.camera, 4.2, onHint);
 
     // Marcador del seleccionado
     this.marker = new THREE.Group();
@@ -56,23 +57,33 @@ export class SatEngine {
     this.marker.visible = false;
     this.scene.add(this.marker);
 
-    let downX = 0, downY = 0, lastHover = 0;
-    host.addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; });
+    // Clic = pulsación corta sin arrastre y con un solo puntero (un pellizco no deselecciona)
+    let downX = 0, downY = 0, lastHover = 0, multi = false;
+    const active = new Set<number>();
+    const signal = this.listeners.signal;
+    host.addEventListener("pointerdown", (e) => {
+      active.add(e.pointerId);
+      if (active.size === 1) { downX = e.clientX; downY = e.clientY; multi = false; } else multi = true;
+    }, { signal });
+    const release = (e: PointerEvent) => { active.delete(e.pointerId); };
+    host.addEventListener("pointercancel", release, { signal });
     host.addEventListener("pointerup", (e) => {
-      if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return; // fue un arrastre
+      const wasActive = active.delete(e.pointerId);
+      if (!wasActive || multi || active.size || Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return;
       const i = this.pickIndex(e.clientX, e.clientY);
       this.select(i);
       this.onPick(i >= 0 ? this.sats[i].omm.NORAD_CAT_ID : null);
-    });
+    }, { signal });
     host.addEventListener("pointermove", (e) => {
       const now = performance.now();
-      if (now - lastHover < 80 || e.buttons) return;
+      if (now - lastHover < 80 || e.buttons || e.pointerType === "touch") return;
       lastHover = now;
       const i = this.pickIndex(e.clientX, e.clientY);
       const rect = host.getBoundingClientRect();
       this.onHover(i >= 0 ? this.sats[i].omm.OBJECT_NAME : null, e.clientX - rect.left, e.clientY - rect.top);
       host.style.cursor = i >= 0 ? "pointer" : "grab";
-    });
+    }, { signal });
+    host.addEventListener("pointerleave", () => this.onHover(null, 0, 0), { signal });
     this.raf = requestAnimationFrame(this.loop);
   }
 
@@ -91,6 +102,7 @@ export class SatEngine {
     list.forEach((s, i) => { const c = new THREE.Color(s.color); col.set([c.r, c.g, c.b], i * 3); shape[i] = ICON_KINDS.indexOf(s.icon); });
     const now = this.simMs;
     for (let i = 0; i < n; i++) this.reanchor(i, now);
+    this.pos.set(this.anchor);
     this.geo.dispose();
     this.geo = new THREE.BufferGeometry();
     this.geo.setAttribute("position", new THREE.BufferAttribute(this.pos, 3));
@@ -101,17 +113,22 @@ export class SatEngine {
       this.atlas = new THREE.CanvasTexture(buildAtlas());
       this.atlas.colorSpace = THREE.SRGBColorSpace;
     }
-    // Iconos por tipo (atlas 4×2), tamaño en pantalla con perspectiva y mínimo legible
+    // Iconos por tipo (atlas 4×2), tamaño en pantalla con perspectiva y mínimo legible.
+    // gl_PointSize va en píxeles del dispositivo: todo se multiplica por la densidad de pantalla (pr).
+    const pr = this.renderer.getPixelRatio();
     this.material?.dispose();
     this.material = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false,
-      uniforms: { atlas: { value: this.atlas }, size: { value: n > 3000 ? 0.045 : n > 600 ? 0.075 : 0.13 }, minPx: { value: n > 3000 ? 6 : n > 600 ? 10 : 16 }, scale: { value: this.host.clientHeight / 2 } },
+      uniforms: {
+        atlas: { value: this.atlas }, size: { value: n > 3000 ? 0.045 : n > 600 ? 0.075 : 0.13 },
+        minPx: { value: (n > 3000 ? 6 : n > 600 ? 10 : 16) * pr }, maxPx: { value: 44 * pr }, scale: { value: (this.host.clientHeight / 2) * pr },
+      },
       vertexShader: `
-        attribute float shape; attribute vec3 color; varying vec3 vColor; varying float vShape; uniform float size; uniform float scale; uniform float minPx;
+        attribute float shape; attribute vec3 color; varying vec3 vColor; varying float vShape; uniform float size; uniform float scale; uniform float minPx; uniform float maxPx;
         void main() {
           vColor = color; vShape = shape;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = clamp(size * scale / -mv.z, minPx, 44.0);
+          gl_PointSize = clamp(size * scale / -mv.z, minPx, maxPx);
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `
@@ -125,6 +142,8 @@ export class SatEngine {
         }`,
     });
     this.points = new THREE.Points(this.geo, this.material);
+    // Los puntos rodean la Tierra: sin recorte por frustum (evita recalcular la esfera envolvente en cada fotograma)
+    this.points.frustumCulled = false;
     this.scene.add(this.points);
     // Encuadre: la cámara se ajusta al 85 % de los objetos (unos pocos en órbita alta no alejan la vista)
     const radii: number[] = [];
@@ -152,10 +171,13 @@ export class SatEngine {
 
   private loop = () => {
     const real = Date.now();
-    this.simMs = this.warp === 1 ? real : this.simMs + (real - this.lastReal) * this.warp;
+    const gap = real - this.lastReal;
+    this.simMs = this.warp === 1 ? real : this.simMs + gap * this.warp;
     this.lastReal = real;
     const now = this.simMs;
     const n = this.sats.length;
+    // Tras una pausa larga (pestaña en segundo plano) se re-ancla todo: extrapolar minutos en línea recta dispersaría los puntos
+    if (gap > 250) for (let i = 0; i < n; i++) this.reanchor(i, now);
     // Re-anclaje escalonado: cada satélite pasa por SGP4 aproximadamente una vez por segundo
     const batch = Math.min(n, Math.max(40, Math.ceil((n / 60) * Math.min(this.warp, 20))));
     for (let k = 0; k < batch && n; k++) { this.cursor %= n; this.reanchor(this.cursor, now); this.cursor = (this.cursor + 1) % n; }
@@ -165,7 +187,7 @@ export class SatEngine {
       this.pos[j + 1] = this.anchor[j + 1] + this.vel[j + 1] * dt;
       this.pos[j + 2] = this.anchor[j + 2] + this.vel[j + 2] * dt;
     }
-    if (n) { this.geo.attributes.position.needsUpdate = true; this.geo.computeBoundingSphere(); }
+    if (n) this.geo.attributes.position.needsUpdate = true;
     this.earth.rotation.y = gstime(new Date(now));
     if (this.selected >= 0) {
       const j = this.selected * 3;
@@ -174,18 +196,19 @@ export class SatEngine {
       this.marker.scale.setScalar(screenScale(this.camera, this.marker.position));
       if (real - this.lastOrbit > 1000) this.refreshOrbit(); // la órbita acompaña al satélite
     }
-    if (this.material) this.material.uniforms.scale.value = this.host.clientHeight / 2;
+    if (this.material) this.material.uniforms.scale.value = (this.host.clientHeight / 2) * this.renderer.getPixelRatio();
     this.ctl.update();
     this.renderer.render(this.scene, this.camera);
     this.raf = requestAnimationFrame(this.loop);
   };
 
   private pickIndex(cx: number, cy: number) {
-    if (!this.points) return -1;
+    if (!this.points || !this.sats.length) return -1;
     const rect = this.host.getBoundingClientRect();
     const ndc = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     this.raycaster.params.Points = { threshold: 0.012 * this.camera.position.length() };
+    this.geo.computeBoundingSphere(); // solo al elegir (el raycaster la usa como prefiltro)
     const hits = this.raycaster.intersectObject(this.points);
     // Descarta los que están detrás de la Tierra
     const earthHit = this.raycaster.ray.intersectSphere(new THREE.Sphere(new THREE.Vector3(), 1), new THREE.Vector3());
@@ -197,7 +220,12 @@ export class SatEngine {
   select(i: number) {
     this.selected = i;
     this.marker.visible = i >= 0;
-    if (this.orbitLine) { this.scene.remove(this.orbitLine); this.orbitLine.geometry.dispose(); this.orbitLine = null; }
+    if (this.orbitLine) {
+      this.scene.remove(this.orbitLine);
+      this.orbitLine.geometry.dispose();
+      (this.orbitLine.material as THREE.Material).dispose();
+      this.orbitLine = null;
+    }
     if (i < 0 || !this.recs[i]) return;
     this.orbitLine = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: this.sats[i].color, transparent: true, opacity: 0.8 }));
     this.scene.add(this.orbitLine);
@@ -245,10 +273,13 @@ export class SatEngine {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    this.listeners.abort();
     this.ctl.dispose();
+    if (this.points) this.scene.remove(this.points);
     this.geo.dispose();
     this.material?.dispose();
     this.atlas?.dispose();
+    disposeScene(this.scene);
     this.disposeRenderer();
   }
 }

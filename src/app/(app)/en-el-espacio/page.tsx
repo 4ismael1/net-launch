@@ -6,7 +6,10 @@ import { Card, Empty } from "@/components/ui/Card";
 import { Streamed } from "@/components/ui/Streamed";
 import { InSpace } from "@/components/space/InSpace";
 
-export const metadata: Metadata = { title: "En el espacio" };
+export const metadata: Metadata = {
+  title: "En el espacio",
+  description: "Quién está en órbita ahora, en qué estación y por dónde pasa, con posiciones calculadas (SGP4) a partir de elementos orbitales públicos.",
+};
 
 export default function Page() {
   return (

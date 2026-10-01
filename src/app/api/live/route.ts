@@ -5,6 +5,9 @@ import { markAttempt, minutesSinceLastAttempt, minutesSinceLastSync, runSync } f
 
 export const maxDuration = 60;
 
+// Por instancia: como mucho una comprobación en la BD por minuto (el latido llega cada 20–60 s desde cada pestaña)
+let lastCheck = 0;
+
 // Latido: estado mínimo para actualizar la interfaz en vivo (sin recargar la página).
 // Además, si los datos tienen más de 15 min, lanza una sincronización en segundo plano DESPUÉS de responder
 // (respaldo si el cron no se ejecuta). El candado en la BD evita solapes y el presupuesto de LL2 se respeta.
@@ -15,6 +18,10 @@ export async function GET(req: Request) {
 
   after(async () => {
     try {
+      // Atajo sin consultas: el estado (en caché) ya dice que la última sincronización es reciente
+      if (state.lastSync && Date.now() - Date.parse(state.lastSync) < 15 * 60_000) return;
+      if (Date.now() - lastCheck < 60_000) return;
+      lastCheck = Date.now();
       const m = await minutesSinceLastSync();
       if (m !== null && m < 15) return;
       // Como mucho un intento cada 10 min, aunque haya muchos visitantes a la vez

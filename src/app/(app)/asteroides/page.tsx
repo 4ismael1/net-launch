@@ -9,7 +9,10 @@ import { ApproachChart } from "@/components/charts/ApproachChart";
 import { ApproachExplorer } from "@/components/space/ApproachExplorer";
 import { sizeLabel } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Asteroides cercanos" };
+export const metadata: Metadata = {
+  title: "Asteroides cercanos",
+  description: "Acercamientos de asteroides y cometas a la Tierra en los últimos 30 días y los próximos 60, con datos del CNEOS de la NASA/JPL.",
+};
 
 export default function Page() {
   return (
@@ -54,7 +57,7 @@ function Rows({ rows, past }: { rows: Approach[]; past?: boolean }) {
 }
 
 async function Content() {
-  const { near, big, at } = await getApproaches();
+  const { near, big, bigUnavailable, at } = await getApproaches();
   if (!near.length && !big.length) return <Card><Empty>No se pudo consultar a JPL en este momento. Vuelve a intentarlo en unos minutos.</Empty></Card>;
   const upcoming = near.filter((r) => Date.parse(r.date) >= at);
   const past = near.filter((r) => Date.parse(r.date) < at).reverse();
@@ -82,7 +85,7 @@ async function Content() {
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader title="Los grandes del próximo año" meta="> ~140 m · < 0,2 ua" />
-          {big.length ? <Rows rows={big} /> : <Empty>Ninguno en el próximo año.</Empty>}
+          {big.length ? <Rows rows={big} /> : <Empty>{bigUnavailable ? "No se pudo consultar a JPL en este momento." : "Ninguno en el próximo año."}</Empty>}
         </Card>
         <Card>
           <CardHeader title="Últimos 30 días" />

@@ -7,7 +7,10 @@ import { Streamed } from "@/components/ui/Streamed";
 import { Card, Empty } from "@/components/ui/Card";
 import { ZoomImage } from "@/components/ui/ZoomImage";
 
-export const metadata: Metadata = { title: "Imagen del día" };
+export const metadata: Metadata = {
+  title: "Imagen del día",
+  description: "Astronomy Picture of the Day de la NASA con su explicación en español y las imágenes de los últimos días.",
+};
 
 export default function Page({ searchParams }: PageProps<"/imagen-del-dia">) {
   return (

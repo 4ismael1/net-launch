@@ -25,12 +25,19 @@ export function isPrecise(netPrecision: string | null | undefined) {
   return !netPrecision || ["SEC", "MIN", "HR"].includes(netPrecision);
 }
 
+/** ¿Se conoce la hora al minuto? (con HR solo se sabe la hora aproximada: nada de segundos) */
+export function isExact(netPrecision: string | null | undefined) {
+  return !netPrecision || ["SEC", "MIN"].includes(netPrecision);
+}
+
 /** Texto honesto de la fecha según su precisión (NET = no antes de). */
 export function netLabel(net: Date | string | null, precision: string | null | undefined, tz?: string) {
   if (!net) return "Sin fecha pública";
   const d = new Date(net);
-  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("es", { timeZone: tz ?? "UTC", ...o }).format(d);
   const p = precision ?? "MIN";
+  // Fechas sin hora (día, mes, trimestre…) son fechas UTC: convertirlas a la zona local cambiaría el día.
+  const zone = ["SEC", "MIN", "HR"].includes(p) ? tz ?? "UTC" : "UTC";
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("es", { timeZone: zone, ...o }).format(d);
   if (["SEC", "MIN", "HR"].includes(p)) return f({ day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   if (p === "DAY") return `NET ${f({ day: "numeric", month: "short", year: "numeric" })}`;
   if (p === "MON" || p === "WK") return `NET ${f({ month: "long", year: "numeric" })}`;
@@ -49,6 +56,10 @@ const A3_A2: Record<string, string> = {
   SAU: "SA", TUR: "TR", EGY: "EG", ZAF: "ZA", TWN: "TW", VNM: "VN", THA: "TH", MYS: "MY", SGP: "SG",
   FIN: "FI", DNK: "DK", AUT: "AT", POL: "PL", CZE: "CZ", HUN: "HU", GRC: "GR", IRL: "IE", NGA: "NG",
   PER: "PE", CHL: "CL", COL: "CO", VEN: "VE", BGD: "BD", LKA: "LK", PHL: "PH", KWT: "KW", QAT: "QA",
+  OMN: "OM", BHR: "BH", JOR: "JO", IRQ: "IQ", MAR: "MA", TUN: "TN", ETH: "ET", RWA: "RW", GHA: "GH", UGA: "UG",
+  ROU: "RO", BGR: "BG", SVK: "SK", SVN: "SI", HRV: "HR", EST: "EE", LVA: "LV", LTU: "LT", ISL: "IS", BLR: "BY",
+  AZE: "AZ", GEO: "GE", ARM: "AM", UZB: "UZ", TKM: "TM", MNG: "MN", NPL: "NP", URY: "UY", BOL: "BO", ECU: "EC",
+  PRY: "PY", CRI: "CR", GTM: "GT", CUB: "CU",
 };
 
 export function countryName(a3: string | null | undefined) {
@@ -88,6 +99,11 @@ export function splitCountdown(ms: number) {
     m: Math.floor((t % 3600) / 60),
     s: Math.floor(t % 60),
   };
+}
+
+/** "1 lanzamiento" / "3 lanzamientos" */
+export function plural(n: number, one: string, many: string) {
+  return `${n.toLocaleString("es")} ${n === 1 ? one : many}`;
 }
 
 /** LL2 usa "Unknown Pad" cuando la plataforma aún no se ha anunciado. */

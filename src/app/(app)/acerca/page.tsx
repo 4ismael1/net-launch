@@ -3,7 +3,10 @@ import Link from "next/link";
 import { ArrowRight, Code2, GraduationCap } from "lucide-react";
 import { Card, CardHeader } from "@/components/ui/Card";
 
-export const metadata: Metadata = { title: "Acerca del proyecto" };
+export const metadata: Metadata = {
+  title: "Acerca del proyecto",
+  description: "Proyecto de investigación de Ingeniería Aeronáutica (UPB): pregunta, objetivos y cómo la plataforma centraliza la información sobre lanzamientos espaciales.",
+};
 
 const OBJECTIVES = [
   {

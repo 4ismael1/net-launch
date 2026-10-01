@@ -10,6 +10,17 @@ import { Card, CardHeader } from "@/components/ui/Card";
 export async function About({ title = "Descripción", text, esOverride, wikiUrl }: { title?: string; text?: string | null; esOverride?: string | null; wikiUrl?: string | null }) {
   const es = esOverride ?? (await translationFor(text));
   if (!text && !wikiUrl) return null;
+  // Sin texto propio, la tarjeta depende solo de Wikipedia: si no hay artículo, no se muestra una tarjeta vacía.
+  if (!text) {
+    const w = await wikiEs(wikiUrl);
+    if (!w) return null;
+    return (
+      <Card>
+        <CardHeader title={title} />
+        <WikiBody w={w} bordered={false} />
+      </Card>
+    );
+  }
   return (
     <Card>
       <CardHeader title={title} />
@@ -29,6 +40,10 @@ export async function About({ title = "Descripción", text, esOverride, wikiUrl 
 async function Wiki({ url, bordered }: { url?: string | null; bordered: boolean }) {
   const w = await wikiEs(url);
   if (!w) return null;
+  return <WikiBody w={w} bordered={bordered} />;
+}
+
+function WikiBody({ w, bordered }: { w: NonNullable<Awaited<ReturnType<typeof wikiEs>>>; bordered: boolean }) {
   return (
     <div className={bordered ? "animate-fade-in border-t border-line p-4" : "animate-fade-in p-4"}>
       <div className="flex gap-3">
@@ -38,7 +53,7 @@ async function Wiki({ url, bordered }: { url?: string | null; bordered: boolean 
         )}
         <p className="line-clamp-6 text-sm leading-relaxed text-fg-muted">{w.extract}</p>
       </div>
-      <a href={w.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-fg-dim hover:text-fg">
+      <a href={w.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-fg-dim transition-colors hover:text-fg">
         Wikipedia en español · {w.title} <ExternalLink className="size-3" />
       </a>
     </div>

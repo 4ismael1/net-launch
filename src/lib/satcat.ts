@@ -6,8 +6,8 @@ export const SATCAT_URL = "https://celestrak.org/pub/satcat.csv";
 export type ObjType = "PAY" | "R/B" | "DEB" | "UNK";
 export const OBJ_TYPES: ObjType[] = ["PAY", "R/B", "DEB", "UNK"];
 export const OBJ_LABEL: Record<ObjType, string> = { PAY: "Cargas útiles", "R/B": "Etapas de cohete", DEB: "Fragmentos", UNK: "Sin identificar" };
-// Paleta categórica en orden fijo, validada sobre la superficie oscura (banda de luminosidad y daltonismo)
-export const TYPE_COLORS: Record<ObjType, string> = { PAY: "#f2551a", "R/B": "#2a9fb2", DEB: "#b98c25", UNK: "#d35f98" };
+// Paleta categórica cálida (sin azules ni rosas), distinguible por luminosidad sobre la superficie oscura
+export const TYPE_COLORS: Record<ObjType, string> = { PAY: "#f2551a", "R/B": "#e6dcc4", DEB: "#b98c25", UNK: "#77736a" };
 
 export type Regime = "LEO" | "MEO" | "GEO" | "HEO" | "OTRA";
 export type SatcatSummary = {
@@ -121,8 +121,8 @@ export function summarizeSatcat(csv: string, now = Date.now()): SatcatSummary {
   return s;
 }
 
-export async function fetchSatcatSummary() {
-  const res = await fetch(SATCAT_URL, { signal: AbortSignal.timeout(30_000), headers: { "User-Agent": "NET-plataforma-universitaria" } });
+export async function fetchSatcatSummary(timeoutMs = 30_000) {
+  const res = await fetch(SATCAT_URL, { signal: AbortSignal.timeout(Math.max(1000, Math.min(timeoutMs, 30_000))), headers: { "User-Agent": "NET-plataforma-universitaria" } });
   if (!res.ok) throw new Error(`SATCAT ${res.status}`);
   return summarizeSatcat(await res.text());
 }

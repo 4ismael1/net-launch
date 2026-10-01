@@ -7,9 +7,13 @@ import { NextLaunchHero } from "@/components/launch/NextLaunchHero";
 import { LaunchRow } from "@/components/launch/LaunchRow";
 import { PanelMap } from "@/components/map/PanelMap";
 import { countryName } from "@/lib/format";
+import { typeLabel } from "@/lib/data/entities";
 import { Flag } from "@/components/ui/Flag";
 
-export const metadata: Metadata = { title: "Panel" };
+export const metadata: Metadata = {
+  title: "Panel",
+  description: "Próximo lanzamiento con cuenta regresiva, actividad mundial, resultados recientes y cifras del año, con datos de Launch Library 2.",
+};
 
 const nf = new Intl.NumberFormat("es");
 
@@ -24,10 +28,12 @@ export default async function PanelPage() {
   ]);
   const successRate = kpis.year_done ? Math.round((kpis.year_success / kpis.year_done) * 1000) / 10 : null;
   const year = kpis.year;
+  // El protagonista puede no ser el primero por fecha (se prefiere uno con hora exacta): se excluye por id
+  const rest = upcoming.filter((l) => l.id !== next?.id).slice(0, 7);
 
   return (
     <div className="mx-auto grid max-w-[1400px] grid-cols-[minmax(0,1fr)] gap-4">
-      {next ? <NextLaunchHero l={next} /> : <Card><Empty>No hay lanzamientos próximos en los datos.</Empty></Card>}
+      {next ? <NextLaunchHero l={next} /> : <><h1 className="sr-only">Panel</h1><Card><Empty>No hay lanzamientos próximos en los datos.</Empty></Card></>}
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-3 xl:grid-cols-6">
         <Kpi label="Próximos" value={nf.format(kpis.upcoming)} hint="Programados" />
@@ -55,8 +61,8 @@ export default async function PanelPage() {
             title="Próximos lanzamientos"
             action={<Link href="/lanzamientos" className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg">Ver todos <ArrowRight className="size-3.5" /></Link>}
           />
-          {upcoming.length ? (
-            <ul className="divide-y divide-line">{upcoming.slice(next ? 1 : 0, 8).map((l) => <LaunchRow key={l.id} l={l} />)}</ul>
+          {rest.length ? (
+            <ul className="divide-y divide-line">{rest.map((l) => <LaunchRow key={l.id} l={l} />)}</ul>
           ) : (
             <Empty>Sin datos.</Empty>
           )}
@@ -93,7 +99,7 @@ export default async function PanelPage() {
                   <p className="truncate font-medium">{spotlight.name}</p>
                   <p className="text-xs text-fg-dim">
                     {spotlight.country_codes?.slice(0, 3).map((c) => <span key={c} className="mr-2"><Flag code={c} /> {countryName(c)}</span>)}
-                    {spotlight.type && ` · ${spotlight.type}`}
+                    {spotlight.type && ` · ${typeLabel(spotlight.type)}`}
                   </p>
                 </div>
               </div>

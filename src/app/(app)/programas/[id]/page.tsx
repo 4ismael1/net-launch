@@ -8,13 +8,19 @@ import { Card, CardHeader, Kpi } from "@/components/ui/Card";
 import { Facts, LaunchListCard, YearBars } from "@/components/entity/shared";
 import { About } from "@/components/ui/About";
 
+// Solo enteros positivos que caben en un int4 de Postgres; lo demás es 404 sin consultar la BD
+const toId = (s: string) => (/^\d{1,9}$/.test(s) ? Number(s) : null);
+
 export async function generateStaticParams() {
-  return (await listPrograms()).slice(0, 12).map((p) => ({ id: String(p.id) }));
+  const ids = (await listPrograms()).slice(0, 12).map((p) => ({ id: String(p.id) }));
+  return ids.length ? ids : [{ id: "1" }]; // Next exige al menos uno (el catálogo puede estar descargándose aún)
 }
 
 export async function generateMetadata({ params }: PageProps<"/programas/[id]">): Promise<Metadata> {
-  const d = await getProgram(Number((await params).id));
-  return { title: d?.program.name ?? "Programa" };
+  const id = toId((await params).id);
+  const d = id ? await getProgram(id) : null;
+  if (!d) return { title: "Programa no encontrado" };
+  return { title: d.program.name, description: (d.program.descriptionEs ?? d.program.description)?.slice(0, 160) ?? `${d.program.name}: misiones, próximos vuelos y cronología.` };
 }
 
 export default function Page({ params }: PageProps<"/programas/[id]">) {
@@ -28,10 +34,13 @@ export default function Page({ params }: PageProps<"/programas/[id]">) {
 const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : null);
 
 async function Content({ params }: Pick<PageProps<"/programas/[id]">, "params">) {
-  const id = Number((await params).id);
-  const d = Number.isInteger(id) ? await getProgram(id) : null;
+  const id = toId((await params).id);
+  const [d, all] = await Promise.all([id ? getProgram(id) : null, listPrograms()]);
   if (!d) notFound();
   const { program: p } = d;
+  // "Hoy" según los datos (último lanzamiento registrado): un fin con fecha futura sigue "en curso"
+  const today = Math.max(0, ...all.map((x) => (x.last ? Date.parse(x.last) : 0)));
+  const ended = !!p.end && Date.parse(p.end) <= today && !p.upcoming;
   const done = d.years.reduce((s, y) => s + y.success + y.failure, 0);
   const ok = d.years.reduce((s, y) => s + y.success, 0);
   return (
@@ -45,7 +54,7 @@ async function Content({ params }: Pick<PageProps<"/programas/[id]">, "params">)
           </>
         )}
         <div className="relative max-w-2xl">
-          <p className="label mb-1">{programType(p.type) ?? "Programa"}{p.end && !p.upcoming ? " · Finalizado" : " · En curso"}</p>
+          <p className="label mb-1">{programType(p.type) ?? "Programa"}{ended ? " · Finalizado" : " · En curso"}</p>
           <h1 className="text-2xl font-semibold tracking-tight md:text-4xl">{p.name}</h1>
           <p className="mt-2 text-sm text-fg-muted">
             {p.agencies.map((a, i) => <span key={a.id}>{i > 0 && " · "}<Link href={`/organizaciones/${a.id}`} className="hover:text-fg hover:underline">{a.name}</Link></span>)}
@@ -61,7 +70,7 @@ async function Content({ params }: Pick<PageProps<"/programas/[id]">, "params">)
         <Kpi label="Lanzamientos" value={p.launches} hint="Con resultado registrado" />
         <Kpi label="Próximos" value={p.upcoming} />
         <Kpi label="Tasa de éxito" value={done ? `${(Math.round((ok / done) * 1000) / 10).toLocaleString("es")} %` : "—"} />
-        <Kpi label="Desde" value={p.start ? new Date(p.start).getUTCFullYear() : "—"} hint={p.end ? `Hasta ${new Date(p.end).getUTCFullYear()}` : "Sigue activo"} />
+        <Kpi label="Desde" value={p.start ? new Date(p.start).getUTCFullYear() : "—"} hint={p.end ? `${ended ? "Hasta" : "Previsto hasta"} ${new Date(p.end).getUTCFullYear()}` : "Sigue activo"} />
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

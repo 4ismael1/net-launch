@@ -24,7 +24,11 @@ export const PAGE_SIZE = 24;
 
 export function parseFilters(sp: Record<string, string | string[] | undefined>): Filters {
   const g = (k: string) => (typeof sp[k] === "string" && sp[k] ? (sp[k] as string) : undefined);
-  const num = (k: string) => (g(k) && Number.isFinite(Number(g(k))) ? Number(g(k)) : undefined);
+  // Solo enteros en rango (ids int4, días, página): "1.5", "1e9" o "-3" se ignoran en vez de romper la consulta
+  const num = (k: string, max = 2147483647) => {
+    const v = Number(g(k));
+    return g(k) && Number.isInteger(v) && v > 0 && v <= max ? v : undefined;
+  };
   const vista = g("vista");
   return {
     q: g("q")?.slice(0, 80),
@@ -34,15 +38,15 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
     pais: g("pais")?.slice(0, 3),
     cohete: num("cohete"),
     base: num("base"),
-    dias: num("dias"),
+    dias: num("dias", 3650),
     desde: g("desde"),
     hasta: g("hasta"),
     orden: g("orden") === "asc" || g("orden") === "desc" ? (g("orden") as "asc" | "desc") : undefined,
-    page: Math.max(1, num("page") ?? 1),
+    page: num("page", 10_000) ?? 1,
   };
 }
 
-const isDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const isDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
 
 export async function searchLaunches(f: Filters) {
   "use cache";

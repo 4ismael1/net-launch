@@ -3,15 +3,26 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Streamed } from "@/components/ui/Streamed";
 import { ExternalLink } from "lucide-react";
-import { getRocket } from "@/lib/data/entities";
+import { getRocket, listRockets } from "@/lib/data/entities";
 import { Card, CardHeader, Kpi } from "@/components/ui/Card";
 import { Facts, LaunchListCard, YearBars } from "@/components/entity/shared";
 import { Flag } from "@/components/ui/Flag";
 import { About } from "@/components/ui/About";
 
+// Solo enteros positivos que caben en un int4 de Postgres; lo demás es 404 sin consultar la BD
+const toId = (s: string) => (/^\d{1,9}$/.test(s) ? Number(s) : null);
+
+export async function generateStaticParams() {
+  const ids = (await listRockets({})).slice(0, 10).map((r) => ({ id: String(r.id) }));
+  return ids.length ? ids : [{ id: "164" }]; // Next exige al menos uno
+}
+
 export async function generateMetadata({ params }: PageProps<"/vehiculos/[id]">): Promise<Metadata> {
-  const d = await getRocket(Number((await params).id));
-  return { title: d?.rocket.fullName ?? d?.rocket.name ?? "Vehículo" };
+  const id = toId((await params).id);
+  const d = id ? await getRocket(id) : null;
+  if (!d) return { title: "Vehículo no encontrado" };
+  const name = d.rocket.fullName ?? d.rocket.name;
+  return { title: name, description: d.rocket.description?.slice(0, 160) ?? `${name}: especificaciones, vuelos y tasa de éxito.` };
 }
 
 export default function Page({ params }: PageProps<"/vehiculos/[id]">) {
@@ -22,14 +33,16 @@ export default function Page({ params }: PageProps<"/vehiculos/[id]">) {
   );
 }
 
+const fmtDate = (d: string | null | undefined) => (d ? new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }) : null);
 const unit = (v: number | null | undefined, u: string) => (v == null ? null : `${v.toLocaleString("es")} ${u}`);
 
 async function Content({ params }: Pick<PageProps<"/vehiculos/[id]">, "params">) {
-  const id = Number((await params).id);
-  const d = Number.isInteger(id) ? await getRocket(id) : null;
+  const id = toId((await params).id);
+  const d = id ? await getRocket(id) : null;
   if (!d) notFound();
   const { rocket: r, maker, specs } = d;
-  const done = (r.successfulLaunches ?? 0) + (r.failedLaunches ?? 0);
+  // Mismo denominador que el listado de vehículos: total de LL2 (incluye fallos parciales); si falta, éxitos + fallos
+  const done = r.totalLaunchCount || (r.successfulLaunches ?? 0) + (r.failedLaunches ?? 0);
   const rate = done ? Math.round(((r.successfulLaunches ?? 0) / done) * 1000) / 10 : null;
 
   return (
@@ -75,7 +88,7 @@ async function Content({ params }: Pick<PageProps<"/vehiculos/[id]">, "params">)
               ["Carga a LEO", unit(r.leoCapacity, "kg")],
               ["Carga a GTO", unit(r.gtoCapacity, "kg")],
               ["Carga a SSO", unit(specs.ssoCapacity, "kg")],
-              ["Primer vuelo", r.maidenFlight],
+              ["Primer vuelo", fmtDate(r.maidenFlight)],
             ]} />
           </Card>
           <Card><CardHeader title="Vuelos por año" /><YearBars data={d.years} /></Card>

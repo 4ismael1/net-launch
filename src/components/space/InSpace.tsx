@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { ExternalLink, Footprints, Rocket, Timer, User, Users, X } from "lucide-react";
@@ -43,12 +43,27 @@ export function InSpace({ stations, astronauts, gp }: { stations: Station[]; ast
   const nations = [...new Set(astronauts.flatMap((a) => a.nationality))];
   const totalDays = astronauts.reduce((n, a) => n + (days(a.timeInSpace) ?? 0), 0);
 
+  // Ficha modal: foco dentro (y de vuelta al cerrar), Tab no se escapa, Escape cierra y la página no se desplaza detrás
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const open = !!person;
   useEffect(() => {
-    if (!person) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPerson(null); };
+    if (!open) return;
+    const back = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setPerson(null); return; }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const f = [...dialogRef.current.querySelectorAll<HTMLElement>("a[href], button:not([disabled])")];
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [person]);
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; back?.focus?.(); };
+  }, [open]);
 
   // Contador en vivo de la expedición
   const exp = current?.s.expeditions[0];
@@ -187,7 +202,7 @@ export function InSpace({ stations, astronauts, gp }: { stations: Station[]; ast
       {/* Ficha de una persona */}
       {person && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-bg/70 p-0 backdrop-blur-sm sm:items-center sm:p-6" onClick={() => setPerson(null)}>
-          <div role="dialog" aria-label={person.name} onClick={(e) => e.stopPropagation()}
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={person.name} onClick={(e) => e.stopPropagation()}
             className="animate-fade-in max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-t-xl border border-line-strong bg-surface shadow-2xl sm:rounded-xl">
             <div className="flex gap-4 border-b border-line p-5">
               <div className="size-24 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-3">
@@ -204,7 +219,7 @@ export function InSpace({ stations, astronauts, gp }: { stations: Station[]; ast
                 </p>
                 {person.agencyId && <Link href={`/organizaciones/${person.agencyId}`} className="mt-1 inline-block text-sm text-fg-muted hover:text-fg hover:underline">{person.agency}</Link>}
               </div>
-              <button onClick={() => setPerson(null)} className="self-start rounded p-1 text-fg-dim hover:bg-surface-3 hover:text-fg" aria-label="Cerrar"><X className="size-5" /></button>
+              <button data-autofocus onClick={() => setPerson(null)} className="self-start rounded p-1 text-fg-dim hover:bg-surface-3 hover:text-fg" aria-label="Cerrar"><X className="size-5" /></button>
             </div>
             <dl className="grid grid-cols-2 gap-px bg-line text-sm sm:grid-cols-4">
               <Stat k="Días en el espacio" v={days(person.timeInSpace)?.toLocaleString("es") ?? "—"} />

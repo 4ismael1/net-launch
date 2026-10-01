@@ -21,11 +21,16 @@ export type Weather = {
   fetchedAt: string;
 };
 
-/** lat/lng redondeados a 2 decimales para compartir caché entre plataformas vecinas. */
-export async function getWeather(lat: number, lng: number, t0Iso: string | null): Promise<Weather | null> {
+// Si Open-Meteo falla, el null se guarda poco tiempo (expire 300 s = mínimo que no excluye del prerender)
+const FAIL = { stale: 60, revalidate: 120, expire: 300 };
+
+/** lat/lng redondeados a 2 decimales ANTES de la caché: así plataformas vecinas comparten entrada. */
+export function getWeather(lat: number, lng: number, t0Iso: string | null): Promise<Weather | null> {
+  return weatherCached(Math.round(lat * 100) / 100, Math.round(lng * 100) / 100, t0Iso);
+}
+
+async function weatherCached(la: number, lo: number, t0Iso: string | null): Promise<Weather | null> {
   "use cache";
-  cacheLife({ stale: 600, revalidate: 1800, expire: 7200 });
-  const la = Math.round(lat * 100) / 100, lo = Math.round(lng * 100) / 100;
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}` +
     `&current=temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation,weather_code` +
@@ -33,7 +38,10 @@ export async function getWeather(lat: number, lng: number, t0Iso: string | null)
     `&forecast_days=16&timezone=UTC&wind_speed_unit=kmh`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "NET-academic-launch-monitor" } });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      cacheLife(FAIL);
+      return null;
+    }
     const j = await res.json();
     const c = j.current ?? {};
     let atT0: Weather["atT0"] = null;
@@ -55,12 +63,14 @@ export async function getWeather(lat: number, lng: number, t0Iso: string | null)
         };
       }
     }
+    cacheLife({ stale: 600, revalidate: 1800, expire: 7200 });
     return {
       current: { time: `${c.time}:00Z`, temp: c.temperature_2m ?? null, wind: c.wind_speed_10m ?? null, windDir: c.wind_direction_10m ?? null, cloud: c.cloud_cover ?? null, precip: c.precipitation ?? null, code: c.weather_code ?? null },
       atT0,
       fetchedAt: new Date().toISOString(),
     };
   } catch {
+    cacheLife(FAIL);
     return null; // Open-Meteo caído → el módulo simplemente no se muestra
   }
 }

@@ -4,7 +4,10 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Streamed } from "@/components/ui/Streamed";
 import { TonightView } from "@/components/space/TonightView";
 
-export const metadata: Metadata = { title: "Esta noche" };
+export const metadata: Metadata = {
+  title: "Esta noche",
+  description: "Qué se puede ver esta noche desde tu ubicación: Sol, Luna, planetas y pasos visibles de la Estación Espacial y otros satélites brillantes.",
+};
 
 export default function Page() {
   return (

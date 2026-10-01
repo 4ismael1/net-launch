@@ -75,6 +75,7 @@ export function Landing({ data }: { data: LandingData }) {
   const scatter = useRef<gsap.core.Timeline | null>(null);
   const counters = useRef<gsap.core.Tween[]>([]);
   const played = useRef<Set<SectionId>>(new Set());
+  const heroPlayed = useRef(false); // la entrada del hero solo la primera vez (no al volver a la portada)
   const reduce = useRef(false);
   const live = useLive();
   const n = live?.next ?? data.next; // tarjeta del próximo lanzamiento: en vivo, sin recargar
@@ -126,7 +127,8 @@ export function Landing({ data }: { data: LandingData }) {
     applyGlobe("ahora", 0);
 
     const ctx = gsap.context(() => {
-      if (!reduce.current) gsap.from("[data-hero] > *", { y: 20, opacity: 0, duration: 0.8, stagger: 0.07, ease: "power3.out" });
+      if (!reduce.current && !heroPlayed.current) gsap.from("[data-hero] > *", { y: 20, opacity: 0, duration: 0.8, stagger: 0.07, ease: "power3.out" });
+      heroPlayed.current = true;
 
       // Sección actual → globo, menú y animaciones propias
       SECTIONS.forEach(({ id }) => ScrollTrigger.create({
@@ -169,7 +171,8 @@ export function Landing({ data }: { data: LandingData }) {
       } else {
         gsap.set("[data-hub]", { opacity: 0, scale: 0.85 });
         gsap.set("[data-pillars]", { opacity: 0 });
-        gsap.set(frags, { opacity: 0, scale: 0.85 });
+        // Cada fragmento se desplaza según su posición: ninguno sobresale por la derecha (sin scroll horizontal).
+        gsap.set(frags, { opacity: 0, scale: 0.85, xPercent: (i: number) => -seeded(i) * 100 });
         scatter.current = gsap.timeline({ paused: true })
           .to(frags, { opacity: 1, scale: 1, stagger: 0.035, duration: 0.45, ease: "power2.out" })
           .to(frags, { left: "50%", top: "50%", xPercent: -50, yPercent: -50, scale: 0.3, opacity: 0, stagger: 0.018, duration: 0.75, ease: "power3.in" }, "+=0.8")
@@ -178,7 +181,8 @@ export function Landing({ data }: { data: LandingData }) {
       }
       counters.current = gsap.utils.toArray<HTMLElement>("[data-count]").map((el) => {
         const to = Number(el.dataset.count), o = { v: 0 };
-        if (reduce.current) el.textContent = to.toLocaleString("es");
+        // El HTML trae la cifra final (sin JS o para buscadores); a 0 solo si se va a animar.
+        if (!reduce.current && !played.current.has("datos")) el.textContent = "0";
         return gsap.to(o, { v: to, duration: 1.2, ease: "power2.out", paused: true, onUpdate: () => { el.textContent = Math.round(o.v).toLocaleString("es"); } });
       });
     }, root);
@@ -204,6 +208,8 @@ export function Landing({ data }: { data: LandingData }) {
       window.removeEventListener("scroll", onScroll);
       clearTimeout(timer);
       ctx.revert();
+      // Al volver a la portada (la página queda montada y oculta) la convergencia se reconstruye oculta: debe poder reproducirse.
+      played.current.delete("problema");
     };
   }, []);
 
@@ -271,9 +277,10 @@ export function Landing({ data }: { data: LandingData }) {
             </div>
           </div>
           <div className="shrink-0 overflow-hidden border-y border-line bg-bg/70 py-3 backdrop-blur [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
-            <div className="flex w-max animate-[marquee_60s_linear_infinite] gap-8 pr-8 hover:[animation-play-state:paused]">
+            <div className="flex w-max animate-[marquee_60s_linear_infinite] gap-8 pr-8 hover:[animation-play-state:paused] focus-within:[animation-play-state:paused] motion-reduce:animate-none">
               {[...data.upcoming, ...data.upcoming].map((l, i) => (
-                <Link key={l.slug + i} href={`/lanzamientos/${l.slug}`} className="flex items-center gap-2.5 text-[13px] whitespace-nowrap text-fg-muted hover:text-fg">
+                <Link key={l.slug + i} href={`/lanzamientos/${l.slug}`} aria-hidden={i >= data.upcoming.length || undefined} tabIndex={i >= data.upcoming.length ? -1 : undefined}
+                  className="flex items-center gap-2.5 text-[13px] whitespace-nowrap text-fg-muted transition-colors hover:text-fg">
                   <StatusDot abbrev={l.status} /><Flag code={l.country} />
                   <span className="text-fg">{l.name}</span>
                   <span className="text-fg-dim">{l.rocket} · {l.provider}</span>
@@ -285,7 +292,7 @@ export function Landing({ data }: { data: LandingData }) {
         </section>
 
         {/* 02 · EL PROBLEMA — una pantalla: convergencia y cifras */}
-        <section id="problema" data-snap className="flex h-dvh min-h-[700px] flex-col px-5 pt-24 pb-6 md:px-12">
+        <section id="problema" data-snap className="flex h-dvh min-h-[700px] flex-col overflow-x-clip px-5 pt-24 pb-6 md:px-12">
           <div className="text-center">
             <Eyebrow n="02" text="El problema" center />
             <h2 className="mx-auto max-w-3xl text-[clamp(1.7rem,min(4vw,6vh),3rem)] leading-tight font-semibold tracking-tight">La información aeroespacial está dispersa.</h2>
@@ -432,12 +439,12 @@ export function Landing({ data }: { data: LandingData }) {
             ] as [string, number][]).map(([k, v]) => (
               <div key={k} className="bg-surface/90 p-5 backdrop-blur">
                 <p className="label">{k}</p>
-                <p className="num mt-2 text-4xl" data-count={v}>0</p>
+                <p className="num mt-2 text-4xl" data-count={v}>{v.toLocaleString("es")}</p>
               </div>
             ))}
           </div>
           <div className="mt-6 flex max-w-5xl flex-wrap gap-2">
-            {["Launch Library 2", "OpenStreetMap", "Open-Meteo", "CelesTrak", "Spaceflight News API", "Natural Earth", "Gemini (traducción)"].map((x) => (
+            {["Launch Library 2", "OpenStreetMap", "OpenFreeMap", "Open-Meteo", "CelesTrak", "NASA/JPL", "Spaceflight News API", "Wikipedia", "Natural Earth", "Gemini (traducción)"].map((x) => (
               <span key={x} className="rounded-md border border-line bg-surface/80 px-3 py-1.5 font-mono text-xs text-fg-muted backdrop-blur">{x}</span>
             ))}
           </div>
@@ -471,7 +478,7 @@ export function Landing({ data }: { data: LandingData }) {
               <FooterCol title="Información" links={[["Acerca del proyecto", "/acerca"], ["Metodología", "/metodologia"], ["Estadísticas", "/estadisticas"], ["Noticias", "/noticias"]]} />
             </div>
             <p className="mx-auto mt-5 max-w-6xl text-[11px] text-fg-dim">
-              Datos: The Space Devs (Launch Library 2, Spaceflight News API) · Cartografía © OpenStreetMap contributors · Clima: Open-Meteo · Órbitas: CelesTrak · Continentes: Natural Earth.
+              Datos: The Space Devs (Launch Library 2, Spaceflight News API) · Mapa: OpenFreeMap, © colaboradores de OpenStreetMap · Clima: Open-Meteo · Órbitas: CelesTrak · Efemérides, asteroides e imagen del día: NASA/JPL · Resúmenes: Wikipedia · Continentes: Natural Earth.
             </p>
           </footer>
         </section>

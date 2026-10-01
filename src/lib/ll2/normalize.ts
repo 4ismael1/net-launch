@@ -91,7 +91,8 @@ export function normRocketConfig(c: Any) {
     totalLaunchCount: n(c.total_launch_count),
     successfulLaunches: n(c.successful_launches),
     failedLaunches: n(c.failed_launches),
-    raw: c,
+    // Solo la versión detallada (las fichas técnicas salen de aquí); la reducida de mode=normal no pisa nada (COALESCE)
+    raw: c.response_mode === "detailed" || "max_stage" in c || "launch_mass" in c ? c : null,
   };
 }
 

@@ -27,6 +27,9 @@ export function isoDur(d: string | null | undefined) {
   return ((y * 365 + mo * 30 + dd) * 24 + h) * 3600 + mi * 60 + s;
 }
 
+/** Id válido para una columna int4 (evita errores SQL con NaN, decimales o fuera de rango). */
+const validId = (id: number) => Number.isInteger(id) && id > 0 && id <= 2147483647;
+
 async function catalogOf<T>(kind: string) {
   const rows = await db.select({ data: C.data }).from(C).where(eq(C.kind, kind));
   return rows.map((r) => r.data as T);
@@ -53,7 +56,7 @@ type RawProgram = {
 export type Program = {
   id: number; name: string; image: string | null; imageBig: string | null; description: string | null; descriptionEs: string | null;
   wikiUrl: string | null; infoUrl: string | null; start: string | null; end: string | null; type: string | null;
-  agencies: { id: number; name: string; abbrev: string | null }[]; launches: number; upcoming: number; last: string | null; next: string | null;
+  agencies: { id: number; name: string; abbrev: string | null }[]; launches: number; upcoming: number; last: string | null; next: string | null; nextPrecision: string | null;
 };
 
 const PROGRAM_TYPE: Record<string, string> = {
@@ -71,12 +74,13 @@ export async function listPrograms(): Promise<Program[]> {
   const [cat, { rows: emb }, { rows: counts }] = await Promise.all([
     catalogOf<RawProgram>("programs"),
     db.execute<{ p: RawProgram }>(sql`SELECT DISTINCT ON ((p->>'id')::int) p FROM launches, jsonb_array_elements(COALESCE(raw->'program','[]'::jsonb)) p ORDER BY (p->>'id')::int, updated_at DESC`),
-    db.execute<{ id: number; n: number; up: number; last: string | null; next: string | null }>(sql`
+    db.execute<{ id: number; n: number; up: number; last: string | null; next: string | null; next_precision: string | null }>(sql`
       SELECT (p->>'id')::int id,
         count(*) FILTER (WHERE l.status_abbrev IN ('Success','Failure','Partial Failure'))::int n,
         count(*) FILTER (WHERE l.net > now() - interval '3 hours' AND l.status_abbrev IN ('Go','TBC','TBD','Hold','In Flight'))::int up,
         max(l.net) FILTER (WHERE l.status_abbrev IN ('Success','Failure','Partial Failure'))::text last,
-        min(l.net) FILTER (WHERE l.net > now() - interval '3 hours' AND l.status_abbrev IN ('Go','TBC','TBD','Hold','In Flight'))::text next
+        min(l.net) FILTER (WHERE l.net > now() - interval '3 hours' AND l.status_abbrev IN ('Go','TBC','TBD','Hold','In Flight'))::text next,
+        (array_agg(l.net_precision ORDER BY l.net) FILTER (WHERE l.net > now() - interval '3 hours' AND l.status_abbrev IN ('Go','TBC','TBD','Hold','In Flight')))[1] next_precision
       FROM launches l, jsonb_array_elements(COALESCE(l.raw->'program','[]'::jsonb)) p GROUP BY 1`),
   ]);
   const byId = new Map<number, RawProgram>();
@@ -93,7 +97,7 @@ export async function listPrograms(): Promise<Program[]> {
         descriptionEs: (p.description && es[p.description]) || null, wikiUrl: p.wiki_url ?? null, infoUrl: p.info_url ?? null,
         start: p.start_date ?? null, end: p.end_date ?? null, type: p.type?.name ?? null,
         agencies: (p.agencies ?? []).map((a) => ({ id: a.id, name: a.name, abbrev: a.abbrev ?? null })),
-        launches: c?.n ?? 0, upcoming: c?.up ?? 0, last: c?.last ?? null, next: c?.next ?? null,
+        launches: c?.n ?? 0, upcoming: c?.up ?? 0, last: c?.last ?? null, next: c?.next ?? null, nextPrecision: c?.next_precision ?? null,
       };
     })
     .sort((a, b) => b.upcoming - a.upcoming || (b.next ? 1 : 0) - (a.next ? 1 : 0) || b.launches - a.launches || a.name.localeCompare(b.name));
@@ -102,6 +106,7 @@ export async function listPrograms(): Promise<Program[]> {
 export async function getProgram(id: number) {
   "use cache";
   cached();
+  if (!validId(id)) return null;
   const p = (await listPrograms()).find((x) => x.id === id);
   if (!p) return null;
   const has = sql`${L.raw}->'program' @> ${JSON.stringify([{ id }])}::jsonb`;
@@ -155,8 +160,8 @@ export async function getReuse() {
   const [launchers, landings, stages] = await Promise.all([
     catalogOf<RawLauncher>("launchers"),
     catalogOf<RawLanding>("landings"),
-    db.execute<{ slug: string; name: string; net: string; status: string | null; provider: string | null; s: RawStage }>(sql`
-      SELECT l.slug, l.name, l.net::text, l.status_abbrev status, a.name provider, s
+    db.execute<{ slug: string; name: string; net: string; precision: string | null; status: string | null; provider: string | null; s: RawStage }>(sql`
+      SELECT l.slug, l.name, l.net::text, l.net_precision AS "precision", l.status_abbrev status, a.name provider, s
       FROM launches l LEFT JOIN agencies a ON a.id = l.provider_id, jsonb_array_elements(l.raw->'rocket'->'launcher_stage') s
       WHERE jsonb_typeof(l.raw->'rocket'->'launcher_stage') = 'array'
         AND (s->'landing') IS NOT NULL AND (s->'landing'->>'attempt')::boolean IS TRUE
@@ -164,7 +169,7 @@ export async function getReuse() {
       ORDER BY l.net DESC`),
   ]);
   const rows = stages.rows.map((r) => ({
-    slug: r.slug, name: r.name, net: r.net, status: r.status, provider: r.provider,
+    slug: r.slug, name: r.name, net: r.net, precision: r.precision, status: r.status, provider: r.provider,
     serial: r.s.launcher?.serial_number && !/^unknown/i.test(r.s.launcher.serial_number) ? r.s.launcher.serial_number : null, launcherId: r.s.launcher?.id ?? null, flight: r.s.launcher_flight_number ?? null,
     reused: !!r.s.reused, turnaround: isoDur(r.s.turn_around_time), success: r.s.landing?.success ?? null,
     where: [r.s.landing?.landing_location?.abbrev, r.s.landing?.landing_location?.name].find((x) => x && x !== "N/A") ?? null,
@@ -259,13 +264,16 @@ function normAstro(a: RawAstronaut): Astronaut {
 export async function listAstronauts() {
   "use cache";
   cached();
-  const all = (await catalogOf<RawAstronaut>("astronauts")).filter((a) => a.type?.name !== "Non-Human").map(normAstro).filter((a) => a.flights > 0 || a.inSpace);
+  // Sin biografías (pesan y el índice no las usa)
+  const rows = await db.select({ data: sql<RawAstronaut>`${C.data} - 'bio'` }).from(C).where(eq(C.kind, "astronauts"));
+  const all = rows.map((r) => r.data).filter((a) => a.type?.name !== "Non-Human").map(normAstro).filter((a) => a.flights > 0 || a.inSpace);
   return all.map(({ bio: _b, wiki: _w, imageBig: _i, ...rest }) => (void _b, void _w, void _i, rest));
 }
 
 export async function getAstronaut(id: number) {
   "use cache";
   cached();
+  if (!validId(id)) return null;
   const [row] = await db.select({ data: C.data }).from(C).where(and(eq(C.kind, "astronauts"), eq(C.id, id))).limit(1);
   let a: Astronaut;
   if (row) a = normAstro(row.data as RawAstronaut);
@@ -274,15 +282,16 @@ export async function getAstronaut(id: number) {
     const x = (await getInSpace())?.astronauts.find((p) => p.id === id);
     if (!x) return null;
     a = {
-      id: x.id, name: x.name, status: "Active", agency: x.agency, agencyAbbrev: x.agencyAbbrev, agencyId: x.agencyId, image: x.imageUrl, imageBig: x.imageUrl,
+      id: x.id, name: x.name, status: x.status, agency: x.agency, agencyAbbrev: x.agencyAbbrev, agencyId: x.agencyId, image: x.imageUrl, imageBig: x.imageUrl,
       inSpace: true, timeInSpace: isoDur(x.timeInSpace) ?? 0, eva: isoDur(x.evaTime) ?? 0, age: x.age, born: null, died: null, country: x.nationality[0] ?? null,
       countryName: null, flights: x.flights ?? 0, spacewalks: x.spacewalks ?? 0, first: x.firstFlight, last: x.lastFlight, bio: x.bio, wiki: x.wiki,
     };
   }
-  const path = `$.rocket.spacecraft_stage[*].launch_crew[*].astronaut ? (@.id == ${id})`;
-  const path2 = `$.rocket.spacecraft_stage.launch_crew[*].astronaut ? (@.id == ${id})`;
+  // Contención (usa el índice GIN launches_spacecraft_stage_gin); spacecraft_stage llega como lista o como objeto
+  const crew = JSON.stringify({ launch_crew: [{ astronaut: { id } }] });
+  const stage = sql`(${L.raw}->'rocket'->'spacecraft_stage')`;
   const [flights, es] = await Promise.all([
-    launchQuery().where(sql`(jsonb_path_exists(${L.raw}, ${path}::jsonpath) OR jsonb_path_exists(${L.raw}, ${path2}::jsonpath))`).orderBy(desc(L.net)).limit(20),
+    launchQuery().where(sql`(${stage} @> ${`[${crew}]`}::jsonb OR ${stage} @> ${crew}::jsonb)`).orderBy(desc(L.net)).limit(20),
     translationsFor([a.bio]),
   ]);
   return { astronaut: a, bioEs: (a.bio && es[a.bio]) || null, flights };

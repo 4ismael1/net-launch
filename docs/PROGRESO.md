@@ -1,6 +1,6 @@
 # PROGRESO
 
-> Leer esto al iniciar sesión. Última actualización: **2026-10-01**. Producción: **https://net-launch.vercel.app** (Vercel, región `cle1`).
+> Leer esto al iniciar sesión. Última actualización: **2026-10-01** (auditoría). Producción: **https://net-launch.vercel.app** (Vercel, región `cle1`).
 > Repo en `main` (todo subido). Build local: `npx next build` (~1 min). Typecheck: `npx tsc --noEmit -p .` · Lint: `npx eslint src`.
 
 ## 1. Estado general
@@ -12,7 +12,7 @@ Plataforma completa y desplegada. Proyecto académico de **Ana Isabel Ruiz Góme
 | Portada | `/` landing 3D con scroll nativo + `scroll-snap` (sin barra de progreso ni puntos laterales: el usuario no los quiere) |
 | Explorar | `/panel`, `/mapa`, `/lanzamientos` (+`[slug]`), `/eventos`, `/en-el-espacio`, `/satelites` (+`[norad]`), `/orbita/[slug]` |
 | Datos | `/organizaciones` (+`[id]`), `/bases` (+`[id]`), `/vehiculos` (+`[id]`), `/programas` (+`[id]`), `/reutilizacion`, `/estadisticas` |
-| Universo | `/esta-noche`, `/mas-alla`, `/asteroides`, `/poblacion-orbital`, `/astronautas` (+`[id]`), `/naves`, `/imagen-del-dia` |
+| Universo | `/esta-noche`, `/mas-alla` (3D heliocéntrico con simulación), `/poblacion-orbital` (globo 3D, SGP4), `/asteroides` (radar clicable), `/astronautas` (+`[id]`), `/naves`, `/imagen-del-dia` |
 | Información | `/noticias`, `/metodologia`, `/acerca` |
 
 ### Fuentes de datos
@@ -40,7 +40,15 @@ Estado al cerrar: catálogo con programs 39, launchers 196, landings ~100 (sigue
 - LL2 2.3.0: naves acopladas en `docking_location[].currently_docked.flight_vehicle_chaser.spacecraft`; Starman es `type: Non-Human` (se excluye de personas).
 - Pausa de los globos: preferencia compartida en localStorage `net-globe-paused` (`GLOBE_PAUSED` en `orbit/earth.ts`); `orbitControls` la escucha.
 - Zoom en SVG: componente `src/components/ui/ZoomPan.tsx` (Ctrl/⌘+rueda, pellizco, doble clic, arrastre; `children(k)` para tamaños constantes).
-- En el panel del navegador de pruebas: rAF limitado si está oculto; esperar ~15 s tras editar antes de probar; dividir pruebas JS (<45 s).
+- En el panel del navegador de pruebas: rAF limitado si está oculto; esperar ~15 s tras editar antes de probar; dividir pruebas JS (<45 s). Con el panel oculto MapLibre/Three no dibujan y salen avisos `Transition was aborted` (no son fallos). Si ya hay un `next dev` del repo en :3000, usar ese (Next no permite dos).
+- WebGL: en cada `dispose` llamar `renderer.forceContextLoss()` + liberar geometrías/materiales (`disposeScene` en `orbit/earth.ts`); si no, cada visita suma un contexto.
+- Globos: la rueda sola desplaza la página; zoom con Ctrl/⌘ + rueda (`GlobeHint`); en táctil `pan-y` (un dedo horizontal gira, dos dedos zoom).
+- Filtros con URL (`ExploreFilters`, `UrlFilters`, `SatExplorer`): el estado sigue a la URL en render (`seenQ`) y `set()` parte de `window.location.search`, no del `sp` capturado.
+- Barra lateral contraída: `<html data-sb="c">` lo fija un script en `<head>` antes del primer pintado; variante Tailwind `sb-collapsed:`.
+- Sync: cada petición a LL2 se registra en la BD **antes** de enviarse (atómico) y renueva el candado con dueño (`{owner, at}`, TTL 15 min); 429 → `ll2_blocked_until`. Fallos de APIs externas: `cacheLife` corto (expire ≥ 300 s para no romper el prerender).
+- Python en Windows: escribir con `newline="
+"` (si no, deja CRLF).
+- Cuenta regresiva: HR = solo días/horas con «≈»; fechas sin hora (DAY, MON…) siempre en UTC.
 
 ## 3. Estética y criterios del usuario
 Grafito cálido (`#0B0B0A`, acento `#FF5B1F`), **sin azul/morado "de IA"**. Todo adaptable a cualquier pantalla, nada cortado. Transiciones fluidas, sensación premium; optimizar sin empeorar la experiencia. Scroll nativo sin bloqueos ni animaciones con retraso. Datos lo más en tiempo real posible dentro de los límites. Respuestas breves y ahorro de tokens.
@@ -56,4 +64,5 @@ Grafito cálido (`#0B0B0A`, acento `#FF5B1F`), **sin azul/morado "de IA"**. Todo
 ## 5. Bitácora
 - 2026-09-30 — F0–F10: plan, BD + sync, interfaz completa, landing 3D, satélites, despliegue en Vercel.
 - 2026-10-01 — Programas, Reutilización, categoría Universo, catálogos LL2, SATCAT, traducciones genéricas, Wikipedia ES; correcciones de scroll bloqueado, "Ver en el mapa", pausa de globos.
+- 2026-10-01 — Auditoría completa (UI, mapa/3D, datos/sync, páginas) y correcciones: 404/errores en español, ids inválidos → 404, paleta sin azules, atribución completa también en móvil, fugas WebGL, búsqueda global en portal, sync robusto (candado con dueño, registro atómico, 429), índices nuevos aplicados en Neon, radar de asteroides clicable; Población orbital y Más allá en 3D.
 - 2026-10-01 — Pulido: APOD desde RSS oficial, radar de asteroides a escala con comparación de tamaño, pasos de satélites dibujados en la cúpula, sondas con foto y escalera de distancias, corte a escala de la población orbital, mapa de zonas de aterrizaje, cronología de programas, "ahora en el espacio" y naves acopladas; zoom en las tres visualizaciones.

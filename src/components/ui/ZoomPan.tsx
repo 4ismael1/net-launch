@@ -14,6 +14,7 @@ export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w:
   const svg = useRef<SVGSVGElement>(null);
   const [v, setV] = useState<View>({ x: 0, y: 0, w });
   const [hint, setHint] = useState(false);
+  const hintRef = useRef(false);
   const k = w / v.w;
   const vh = (v.w * h) / w;
 
@@ -44,7 +45,13 @@ export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w:
     if (!el) return;
     let t: ReturnType<typeof setTimeout> | undefined;
     const wheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) { setHint(true); clearTimeout(t); t = setTimeout(() => setHint(false), 1200); return; }
+      if (!(e.ctrlKey || e.metaKey)) {
+        // Solo se actualiza el estado al cambiar: cada evento de rueda no debe volver a pintar todo el dibujo
+        if (!hintRef.current) { hintRef.current = true; setHint(true); }
+        clearTimeout(t);
+        t = setTimeout(() => { hintRef.current = false; setHint(false); }, 1200);
+        return;
+      }
       e.preventDefault();
       zoomAt(Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
     };
@@ -56,15 +63,23 @@ export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w:
   const ptrs = useRef(new Map<number, { x: number; y: number }>());
   const last = useRef<{ x: number; y: number; d: number } | null>(null);
   const moved = useRef(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
   const onDown = (e: React.PointerEvent) => {
     ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    moved.current = false;
-    if (ptrs.current.size === 1 && k <= 1.001 && e.pointerType === "touch") return; // sin zoom: el dedo desplaza la página
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    if (ptrs.current.size === 1) { moved.current = false; start.current = { x: e.clientX, y: e.clientY }; }
+    else moved.current = true; // pellizco: nunca cuenta como clic
   };
   const onMove = (e: React.PointerEvent) => {
     if (!ptrs.current.has(e.pointerId)) return;
+    // Botón soltado fuera del dibujo antes de arrastrar: se olvida el puntero (si no, el ratón «arrastraría» al pasar)
+    if (e.pointerType === "mouse" && e.buttons === 0) { ptrs.current.delete(e.pointerId); last.current = null; return; }
     ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // Arrastre real (> 4 px) o pellizco: desde aquí se captura el puntero. Antes no, para que un clic o toque
+    // llegue intacto al elemento pulsado (la captura redirige el clic al <svg>).
+    const s0 = start.current;
+    if (!moved.current && s0 && Math.hypot(e.clientX - s0.x, e.clientY - s0.y) > 4) moved.current = true;
+    const pageScroll = ptrs.current.size === 1 && k <= 1.001 && e.pointerType === "touch"; // sin zoom: el dedo desplaza la página
+    if (moved.current && !pageScroll && !(e.currentTarget as Element).hasPointerCapture?.(e.pointerId)) (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const pts = [...ptrs.current.values()];
     const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
     const d = pts.length > 1 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : 0;
@@ -72,13 +87,12 @@ export function ZoomPan({ w, h, maxZoom = 30, label, className, children }: { w:
     last.current = { x: cx, y: cy, d };
     if (!prev) return;
     if (pts.length > 1 && prev.d > 0) zoomAt(d / prev.d, cx, cy);
-    if (pts.length === 1 && k <= 1.001) return;
+    if (pts.length === 1 && (k <= 1.001 || !moved.current)) return;
     const r = svg.current!.getBoundingClientRect();
     const dx = ((cx - prev.x) / r.width) * v.w, dy = ((cy - prev.y) / r.height) * vh;
-    if (Math.abs(cx - prev.x) + Math.abs(cy - prev.y) > 1) moved.current = true;
     setV((cur) => clamp({ ...cur, x: cur.x - dx, y: cur.y - dy }));
   };
-  const onUp = (e: React.PointerEvent) => { ptrs.current.delete(e.pointerId); last.current = null; };
+  const onUp = (e: React.PointerEvent) => { ptrs.current.delete(e.pointerId); last.current = null; if (!ptrs.current.size) start.current = null; };
 
   return (
     <div className={`relative ${className ?? ""}`}>

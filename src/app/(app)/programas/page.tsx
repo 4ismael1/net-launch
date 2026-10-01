@@ -6,8 +6,12 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Streamed } from "@/components/ui/Streamed";
 import { Card, Empty } from "@/components/ui/Card";
 import { Ticker } from "@/components/ui/Ticker";
+import { plural } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Programas" };
+export const metadata: Metadata = {
+  title: "Programas",
+  description: "Artemis, Commercial Crew, Starlink, Tiangong… Los grandes programas espaciales: historia, actividad y próximos vuelos.",
+};
 
 export default function Page() {
   return (
@@ -22,23 +26,27 @@ export default function Page() {
 }
 
 const year = (d: string | null) => (d ? new Date(d).getUTCFullYear() : null);
-const isActive = (p: Program) => !p.end || p.upcoming > 0;
+// "Hoy" según los datos (último lanzamiento registrado): la página se prerenderiza y no puede leer el reloj
+const dataToday = (rows: Program[]) => Math.max(0, ...rows.map((p) => (p.last ? Date.parse(p.last) : 0)));
+// Un programa con fecha de fin futura (p. ej. la ISS) sigue en curso
+const isActive = (p: Program, today: number) => !p.end || Date.parse(p.end) > today || p.upcoming > 0;
 
 async function List() {
   const rows = await listPrograms();
   if (!rows.length) return <Card><Empty>Los programas se cargarán en la próxima sincronización.</Empty></Card>;
   const featured = rows.filter((p) => p.next).sort((a, b) => Date.parse(a.next!) - Date.parse(b.next!)).slice(0, 3);
-  const active = rows.filter(isActive);
-  const past = rows.filter((p) => !isActive(p));
+  const today = dataToday(rows);
+  const active = rows.filter((p) => isActive(p, today));
+  const past = rows.filter((p) => !isActive(p, today));
   return (
     <div className="grid gap-8">
       {featured.length > 0 && (
         <section>
           <h2 className="label mb-3 !text-fg-muted">Próximos vuelos de programa</h2>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-            {featured.map((p, i) => (
+            {featured.map((p) => (
               <Link key={p.id} href={`/programas/${p.id}`}
-                className={clsx("group relative flex flex-col justify-end overflow-hidden rounded-lg border border-line bg-surface p-5 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-line-strong", i === 0 ? "min-h-72 lg:col-span-1" : "min-h-72")}>
+                className="group relative flex min-h-72 flex-col justify-end overflow-hidden rounded-lg border border-line bg-surface p-5 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-line-strong">
                 {p.imageBig && (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -51,8 +59,8 @@ async function List() {
                   <h3 className="mt-1 text-2xl font-semibold tracking-tight">{p.name}</h3>
                   <p className="mt-1 line-clamp-1 text-xs text-fg-muted">{p.agencies.map((a) => a.abbrev ?? a.name).join(" · ")}</p>
                   <div className="mt-4 flex items-end justify-between gap-3">
-                    <Ticker at={p.next!} className="text-xl" />
-                    <span className="text-xs text-fg-muted"><span className="num text-fg">{p.upcoming}</span> próximos</span>
+                    <Ticker at={p.next!} precision={p.nextPrecision} className="text-xl" />
+                    <span className="text-xs text-fg-muted"><span className="num text-fg">{p.upcoming}</span> {p.upcoming === 1 ? "próximo" : "próximos"}</span>
                   </div>
                 </div>
               </Link>
@@ -73,8 +81,7 @@ async function List() {
 function Timeline({ rows }: { rows: Program[] }) {
   const items = rows.filter((p) => p.start).sort((a, b) => Date.parse(a.start!) - Date.parse(b.start!));
   if (!items.length) return null;
-  // "Hoy" según los datos (último lanzamiento registrado): el componente se prerenderiza y no puede leer el reloj
-  const today = Math.max(...rows.map((p) => (p.last ? Date.parse(p.last) : 0)));
+  const today = dataToday(rows);
   const y0 = Math.min(...items.map((p) => year(p.start)!)), y1 = new Date(today).getUTCFullYear() + 1;
   const span = y1 - y0;
   const pos = (d: string | null) => ((Math.min(d ? Date.parse(d) : today, today) - Date.UTC(y0, 0, 1)) / (Date.UTC(y1, 0, 1) - Date.UTC(y0, 0, 1))) * 100;
@@ -100,13 +107,13 @@ function Timeline({ rows }: { rows: Program[] }) {
           <ul className="relative mt-5 grid gap-0.5">
             {items.map((p) => {
               const a = pos(p.start), b = Math.max(a + 0.6, pos(p.end));
-              const on = isActive(p);
+              const on = isActive(p, today);
               return (
                 <li key={p.id}>
-                  <Link href={`/programas/${p.id}`} className="group grid grid-cols-[12.5rem_minmax(0,1fr)] items-center gap-2 rounded py-[3px] hover:bg-surface-2" title={`${p.name} · ${year(p.start)}–${p.end ? year(p.end) : "hoy"} · ${p.launches} lanzamientos`}>
+                  <Link href={`/programas/${p.id}`} className="group grid grid-cols-[12.5rem_minmax(0,1fr)] items-center gap-2 rounded py-[3px] hover:bg-surface-2" title={`${p.name} · ${year(p.start)}–${p.end ? year(p.end) : "hoy"} · ${plural(p.launches, "lanzamiento", "lanzamientos")}`}>
                     <span className="truncate pl-1 text-xs text-fg-muted group-hover:text-fg">{p.name}</span>
                     <span className="relative h-2.5">
-                      <span className={clsx("absolute inset-y-0 rounded-full transition-colors", on ? "bg-accent group-hover:bg-[#ff7a45]" : "bg-fg-muted/50 group-hover:bg-fg-muted")} style={{ left: `${a}%`, width: `${b - a}%` }} />
+                      <span className={clsx("absolute inset-y-0 rounded-full transition-colors", on ? "bg-accent/85 group-hover:bg-accent" : "bg-fg-muted/50 group-hover:bg-fg-muted")} style={{ left: `${a}%`, width: `${b - a}%` }} />
                     </span>
                   </Link>
                 </li>
@@ -139,8 +146,8 @@ function Section({ title, rows }: { title: string; rows: Program[] }) {
               <h3 className="mt-1 text-[17px] font-semibold leading-snug">{p.name}</h3>
               <p className="mt-1 line-clamp-2 text-xs text-fg-muted">{p.agencies.map((a) => a.abbrev ?? a.name).join(" · ") || " "}</p>
               <div className="mt-auto flex items-end justify-between gap-3 pt-4 text-xs">
-                <span className="text-fg-muted"><span className="num text-base text-fg">{p.launches}</span> lanzamientos</span>
-                {p.upcoming > 0 && <span className="inline-flex items-center gap-1.5 text-accent"><span className="size-1.5 rounded-full bg-accent" /> <span className="num">{p.upcoming}</span> próximos</span>}
+                <span className="text-fg-muted"><span className="num text-base text-fg">{p.launches}</span> {p.launches === 1 ? "lanzamiento" : "lanzamientos"}</span>
+                {p.upcoming > 0 && <span className="inline-flex items-center gap-1.5 text-accent"><span className="size-1.5 rounded-full bg-accent" /> <span className="num">{p.upcoming}</span> {p.upcoming === 1 ? "próximo" : "próximos"}</span>}
               </div>
             </div>
           </Link>

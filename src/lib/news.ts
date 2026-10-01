@@ -33,29 +33,39 @@ function mapArticles(results: unknown[]): Article[] {
 
 export const NEWS_PAGE = 24;
 
+// Si la API falla, el resultado vacío se guarda poco tiempo (expire 300 s = mínimo que no excluye del prerender)
+const FAIL = { stale: 60, revalidate: 120, expire: 300 };
+
 /** Noticias con búsqueda, filtro por medio y paginación. */
 export async function getNews(opts: { q?: string; site?: string; page?: number }) {
   "use cache";
-  cacheLife({ stale: 300, revalidate: 1800, expire: 7200 });
   const p = new URLSearchParams({ limit: String(NEWS_PAGE), offset: String(((opts.page ?? 1) - 1) * NEWS_PAGE), ordering: "-published_at" });
   if (opts.q) p.set("search", opts.q);
   if (opts.site) p.set("news_site", opts.site);
-  return fetchPage(p.toString());
+  const r = await fetchPage(p.toString());
+  cacheLife(r ? { stale: 300, revalidate: 1800, expire: 7200 } : FAIL);
+  return r;
 }
 
 export async function getNewsSites() {
   "use cache";
-  cacheLife("days");
   try {
     const r = await fetch("https://api.spaceflightnewsapi.net/v4/info/", { signal: AbortSignal.timeout(8000) });
-    return r.ok ? ((await r.json()).news_sites as string[]) ?? [] : [];
+    const sites = r.ok ? ((await r.json()).news_sites as string[] | undefined) : undefined;
+    if (Array.isArray(sites)) {
+      cacheLife("days");
+      return sites;
+    }
   } catch {
-    return [];
+    // abajo: lista vacía con caché corta
   }
+  cacheLife(FAIL);
+  return [];
 }
 
 export async function getLaunchNews(launchId: string) {
   "use cache";
-  cacheLife({ stale: 600, revalidate: 3600, expire: 6 * 3600 });
-  return fetchArticles(`limit=6&launch=${launchId}&ordering=-published_at`);
+  const r = await fetchArticles(`limit=6&launch=${encodeURIComponent(launchId)}&ordering=-published_at`);
+  cacheLife(r ? { stale: 600, revalidate: 3600, expire: 6 * 3600 } : FAIL);
+  return r;
 }

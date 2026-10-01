@@ -10,8 +10,9 @@ export function When({ at, withTime = true, className }: { at: string; withTime?
   const abs = d.toLocaleString("es", withTime ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" });
   return (
     <time dateTime={at} className={className} suppressHydrationWarning>
-      {now === null ? d.toLocaleDateString("es", { day: "numeric", month: "short", timeZone: "UTC" }) : abs}
-      {now !== null && <span className="text-fg-dim"> · {relativeTime(d, now)}</span>}
+      {now === null ? d.toLocaleString("es", { ...(withTime ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" }), timeZone: "UTC" }) : abs}
+      {/* Hueco reservado antes de hidratar: sin salto de anchura al aparecer "en 3 h" */}
+      <span className={now === null ? "invisible text-fg-dim" : "text-fg-dim"}> · {now === null ? "dentro de 0 h" : relativeTime(d, now)}</span>
     </time>
   );
 }

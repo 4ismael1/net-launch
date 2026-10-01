@@ -2,45 +2,13 @@
 
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import { Body, HelioVector, RotateVector, Rotation_EQJ_ECL } from "astronomy-engine";
 import { useNow } from "@/lib/hooks/client";
-import { ZoomPan } from "@/components/ui/ZoomPan";
 import type { Sample } from "@/lib/data/universe";
+import { SolarSystem3D } from "./SolarSystem3D";
+import { AU, C_KM_S, PLANETS, au, interp, km, len, light, planetKey, planetState, probeKey, probeSpeed, sub, type SelKey, type V3 } from "./solar";
 
 type Probe = { id: number; name: string; agency: string; launched: string; note: string; s: Sample[] };
 
-const AU = 149_597_870.7;
-const C_KM_S = 299_792.458;
-const S = 800, C = S / 2;
-// Escala radial logarítmica: 0 → centro, 0,1 ua → 35 px, 1 ua → 120 px, 30 ua → 285 px, 170 ua → 370 px
-const K = 115;
-const q = (n: number) => Math.round(n * 100) / 100; // 2 decimales: servidor y navegador dan el mismo SVG
-const R = (au: number) => q(K * Math.log10(1 + au / 0.1));
-
-const PLANETS: { b: Body; name: string; a: number; size: number }[] = [
-  { b: Body.Mercury, name: "Mercurio", a: 0.387, size: 2.5 }, { b: Body.Venus, name: "Venus", a: 0.723, size: 3.5 },
-  { b: Body.Earth, name: "Tierra", a: 1, size: 4 }, { b: Body.Mars, name: "Marte", a: 1.524, size: 3 },
-  { b: Body.Jupiter, name: "Júpiter", a: 5.203, size: 6 }, { b: Body.Saturn, name: "Saturno", a: 9.537, size: 5.5 },
-  { b: Body.Uranus, name: "Urano", a: 19.19, size: 4.5 }, { b: Body.Neptune, name: "Neptuno", a: 30.07, size: 4.5 },
-  { b: Body.Pluto, name: "Plutón", a: 39.48, size: 2 },
-];
-
-function at(s: Sample[], t: number): [number, number, number] {
-  let i = s.findIndex((x) => x[0] > t) - 1;
-  if (i < 0) i = t < s[0][0] ? 0 : s.length - 2;
-  const a = s[Math.max(0, i)], b = s[Math.min(s.length - 1, Math.max(0, i) + 1)];
-  const f = b[0] === a[0] ? 0 : (t - a[0]) / (b[0] - a[0]);
-  return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, a[3] + (b[3] - a[3]) * f];
-}
-const len = (v: [number, number, number]) => Math.hypot(v[0], v[1], v[2]);
-const sub = (a: [number, number, number], b: [number, number, number]): [number, number, number] => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-
-const km = (v: number) => Math.round(v).toLocaleString("es");
-const au = (v: number) => (v / AU).toLocaleString("es", { maximumFractionDigits: v / AU < 10 ? 3 : 2 });
-function light(sec: number) {
-  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
-  return h ? `${h} h ${String(m).padStart(2, "0")} min ${String(s).padStart(2, "0")} s` : `${m} min ${String(s).padStart(2, "0")} s`;
-}
 function elapsed(from: string, now: number) {
   const ms = now - Date.parse(`${from}T00:00:00Z`);
   const y = Math.floor(ms / (365.25 * 864e5));
@@ -53,149 +21,122 @@ type Info = { extract: string; url: string; image: string | null } | null;
 export function ProbesView({ probes, earth, at: serverAt, info }: { probes: Probe[]; earth: Sample[] | null; at: number; info: Record<number, Info> }) {
   const live = useNow();
   const now = live ?? serverAt;
-  const [sel, setSel] = useState(probes.find((p) => p.id === -31)?.id ?? probes[0]?.id ?? 0);
+  const [sel, setSel] = useState<SelKey>(() => (probes.some((p) => p.id === -31) ? probeKey(-31) : probes[0] ? probeKey(probes[0].id) : planetKey(PLANETS[2].b)));
 
-  const rot = useMemo(() => Rotation_EQJ_ECL(), []);
-  // Planetas: se recalculan cada minuto (se mueven muy despacio a esta escala)
+  // Planetas para las tarjetas: se recalculan cada minuto (en la vista 3D, a cada paso de la simulación)
   const minute = Math.floor(now / 60_000);
-  const planets = useMemo(() => {
-    const d = new Date(minute * 60_000);
-    return PLANETS.map((p) => {
-      const v = RotateVector(rot, HelioVector(p.b, d));
-      return { ...p, x: v.x, y: v.y, z: v.z };
-    });
-  }, [minute, rot]);
-  const earthNow: [number, number, number] = useMemo(() => {
-    if (earth) return at(earth, now);
-    const e = planets.find((p) => p.b === Body.Earth)!;
-    return [e.x * AU, e.y * AU, e.z * AU];
-  }, [earth, now, planets]);
+  const planets = useMemo(() => PLANETS.map((p) => ({ ...p, ...planetState(p.b, minute * 60_000) })), [minute]);
+  const earthNow: V3 = useMemo(() => (earth ? interp(earth, now) : planets[2].pos), [earth, now, planets]);
 
   const rows = probes.map((p) => {
-    const pos = at(p.s, now);
-    const next = at(p.s, now + 60_000);
-    const sun = len(pos);
-    const fromEarth = len(sub(pos, earthNow));
-    return { ...p, pos, sun, fromEarth, speed: len(sub(next, pos)) / 60 };
+    const pos = interp(p.s, now);
+    return { ...p, pos, sun: len(pos), fromEarth: len(sub(pos, earthNow)), speed: probeSpeed(p.s, now) };
   });
-  const cur = rows.find((r) => r.id === sel) ?? rows[0];
+  const cur = rows.find((r) => probeKey(r.id) === sel);
+  const curPlanet = planets.find((p) => planetKey(p.b) === sel);
+  const isEarth = curPlanet?.b === PLANETS[2].b;
 
-  const pt = (x: number, y: number, z: number) => {
-    const r = Math.hypot(x, y, z), ang = Math.atan2(y, x), rr = R(r);
-    return [q(C + rr * Math.cos(ang)), q(C - rr * Math.sin(ang))] as const;
-  };
-
-  if (!cur) return null;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-      <section className="overflow-hidden rounded-lg border border-line bg-surface">
-        <ZoomPan w={S} h={S} maxZoom={25} label="Sistema solar visto desde arriba, escala logarítmica, con la posición actual de las sondas" className="mx-auto max-w-[720px]">
-          {(k) => {
-            const t = (px: number) => px / k; // tamaño constante en pantalla
-            // Etiquetas sin solaparse (en pantalla): de fuera hacia dentro; la elegida siempre visible
-            const placed: { x: number; y: number; w: number }[] = [];
-            const labels = [...rows].sort((a, b) => Number(b.id === sel) - Number(a.id === sel) || b.sun - a.sun).map((r) => {
-              const [x, y] = pt(r.pos[0] / AU, r.pos[1] / AU, r.pos[2] / AU);
-              const w = t(r.name.length * 6.2 + 8);
-              const free = !placed.some((q) => Math.abs(q.y - y) < t(14) && x + w > q.x && x < q.x + q.w);
-              if (free || r.id === sel) placed.push({ x, y, w });
-              return { id: r.id, x, y, show: free || r.id === sel };
-            });
-            return (
-              <>
-                <defs>
-                  <radialGradient id="sun"><stop offset="0" stopColor="#ffd9a0" /><stop offset="0.5" stopColor="#ff9a3d" stopOpacity="0.6" /><stop offset="1" stopColor="#ff5b1f" stopOpacity="0" /></radialGradient>
-                </defs>
-                <rect x={0} y={0} width={S} height={S} fill="transparent" />
-                {/* Cinturón de Kuiper y heliopausa */}
-                <circle cx={C} cy={C} r={(R(30) + R(50)) / 2} fill="none" stroke="#ecebe60a" strokeWidth={R(50) - R(30)} />
-                <circle cx={C} cy={C} r={R(120)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.35} strokeWidth={t(1)} strokeDasharray={`${t(3)} ${t(6)}`} />
-                <text x={C} y={C - R(120) - t(6)} textAnchor="middle" fontSize={t(11)} fill="var(--color-accent)" fillOpacity={0.7}>Heliopausa · ≈ 120 ua</text>
-                <text x={C} y={C - (R(30) + R(50)) / 2 + t(4)} textAnchor="middle" fontSize={t(10)} fill="var(--color-fg-dim)">Cinturón de Kuiper</text>
-                {PLANETS.map((p) => <circle key={p.name} cx={C} cy={C} r={R(p.a)} fill="none" stroke="var(--color-line-strong)" strokeOpacity={0.8} strokeWidth={t(1)} />)}
-                {[0.1, 1, 10, 100].filter((v) => v >= 1 || k > 3).map((v) => (
-                  <text key={v} x={C + R(v) + t(3)} y={C + t(12)} fontSize={t(9.5)} fill="var(--color-fg-dim)" fontFamily="var(--font-mono)">{v.toLocaleString("es")} ua</text>
-                ))}
-                <circle cx={C} cy={C} r={t(16)} fill="url(#sun)" />
-                <circle cx={C} cy={C} r={t(4)} fill="#ffd9a0" />
-                {planets.map((p) => {
-                  const [x, y] = pt(p.x, p.y, p.z);
-                  return (
-                    <g key={p.name}>
-                      <circle cx={x} cy={y} r={t(p.size)} fill={p.b === Body.Earth ? "#7fb2d8" : "#a6a39a"} />
-                      <text x={x} y={y + t(p.size + 11)} textAnchor="middle" fontSize={t(10)} fill="var(--color-fg-muted)">{p.name}</text>
-                    </g>
-                  );
-                })}
-                {rows.map((r) => {
-                  const l = labels.find((x) => x.id === r.id)!;
-                  const on = r.id === sel;
-                  return (
-                    <g key={r.id} className="cursor-pointer" onClick={() => setSel(r.id)}>
-                      <circle cx={l.x} cy={l.y} r={t(12)} fill="transparent" />
-                      <rect x={l.x - t(4)} y={l.y - t(4)} width={t(8)} height={t(8)} transform={`rotate(45 ${l.x} ${l.y})`} fill={on ? "var(--color-accent)" : "#ecebe6"} stroke="var(--color-surface)" strokeWidth={t(2)} />
-                      {on && <circle cx={l.x} cy={l.y} r={t(10)} fill="none" stroke="var(--color-accent)" strokeOpacity={0.6} strokeWidth={t(1)} />}
-                      {l.show && <text x={l.x + t(9)} y={l.y + t(3.5)} fontSize={t(11)} fontWeight={on ? 600 : 400} fill={on ? "var(--color-fg)" : "var(--color-fg-muted)"}>{r.name}</text>}
-                    </g>
-                  );
-                })}
-              </>
-            );
-          }}
-        </ZoomPan>
-        <p className="border-t border-line px-4 py-2.5 text-[11px] text-fg-dim">Vista desde el polo norte de la eclíptica. Distancia al Sol en escala logarítmica (cada anillo de 1, 10 y 100 ua); la dirección es real. Acerca con Ctrl/⌘ + rueda, pellizco o doble clic para ver los planetas interiores. Posiciones: JPL Horizons, interpoladas al segundo.</p>
-      </section>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid min-w-0 content-start gap-4">
+        <SolarSystem3D probes={probes} earth={earth} sel={sel} onSel={setSel} />
+        {!probes.length && (
+          <p className="rounded-lg border border-line bg-surface px-4 py-3 text-sm text-fg-muted">JPL Horizons no respondió en este momento: se muestran solo el Sol y los planetas. Las sondas volverán a aparecer en unos minutos.</p>
+        )}
+      </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] content-start gap-4">
-        <section className="rounded-lg border border-line bg-surface">
-          <header className="flex gap-4 border-b border-line px-4 py-4">
-            {info[cur.id]?.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={cur.id} src={info[cur.id]!.image!} alt="" className="size-24 shrink-0 animate-fade-in rounded-md bg-surface-3 object-cover" />
+        {cur ? (
+          <section className="rounded-lg border border-line bg-surface">
+            <header className="flex gap-4 border-b border-line px-4 py-4">
+              {info[cur.id]?.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={cur.id} src={info[cur.id]!.image!} alt="" className="size-24 shrink-0 animate-fade-in rounded-md bg-surface-3 object-cover" />
+              )}
+              <div className="min-w-0">
+                <p className="label">{cur.agency} · lanzada el {new Date(`${cur.launched}T00:00:00Z`).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}</p>
+                <h2 className="mt-0.5 text-xl font-semibold">{cur.name}</h2>
+                <p className="mt-1 text-sm text-fg-muted">{cur.note}</p>
+              </div>
+            </header>
+            <Stats fromEarth={cur.fromEarth} sun={cur.sun} speed={cur.speed} radio />
+            <p className="border-t border-line px-4 py-2.5 text-xs text-fg-muted" suppressHydrationWarning>Lleva {elapsed(cur.launched, now)} en el espacio. Valores en vivo: JPL Horizons, interpolado al segundo.</p>
+            {info[cur.id] && (
+              <div className="border-t border-line px-4 py-3">
+                <p className="line-clamp-4 text-sm leading-relaxed text-fg-muted">{info[cur.id]!.extract}</p>
+                <a href={info[cur.id]!.url} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block text-[11px] text-fg-dim hover:text-fg">Wikipedia en español →</a>
+              </div>
             )}
-            <div className="min-w-0">
-              <p className="label">{cur.agency} · lanzada el {new Date(`${cur.launched}T00:00:00Z`).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}</p>
-              <h2 className="mt-0.5 text-xl font-semibold">{cur.name}</h2>
-              <p className="mt-1 text-sm text-fg-muted">{cur.note}</p>
-            </div>
-          </header>
-          <dl className="grid grid-cols-2 gap-px bg-line">
-            <div className="bg-surface p-4"><dt className="label">Distancia a la Tierra</dt><dd className="num mt-1 text-lg leading-tight" suppressHydrationWarning>{km(cur.fromEarth)} km</dd><dd className="num text-xs text-fg-dim" suppressHydrationWarning>{au(cur.fromEarth)} ua</dd></div>
-            <div className="bg-surface p-4"><dt className="label">Distancia al Sol</dt><dd className="num mt-1 text-lg leading-tight" suppressHydrationWarning>{km(cur.sun)} km</dd><dd className="num text-xs text-fg-dim" suppressHydrationWarning>{au(cur.sun)} ua</dd></div>
-            <div className="bg-surface p-4"><dt className="label">Señal de radio tarda</dt><dd className="num mt-1 text-lg leading-tight" suppressHydrationWarning>{light(cur.fromEarth / C_KM_S)}</dd><dd className="text-xs text-fg-dim">en llegar a la Tierra</dd></div>
-            <div className="bg-surface p-4"><dt className="label">Velocidad respecto al Sol</dt><dd className="num mt-1 text-lg leading-tight" suppressHydrationWarning>{cur.speed.toLocaleString("es", { maximumFractionDigits: 2 })} km/s</dd><dd className="num text-xs text-fg-dim" suppressHydrationWarning>{km(cur.speed * 3600)} km/h</dd></div>
-          </dl>
-          <p className="border-t border-line px-4 py-2.5 text-xs text-fg-muted" suppressHydrationWarning>Lleva {elapsed(cur.launched, now)} en el espacio.</p>
-          {info[cur.id] && (
-            <div className="border-t border-line px-4 py-3">
-              <p className="line-clamp-4 text-sm leading-relaxed text-fg-muted">{info[cur.id]!.extract}</p>
-              <a href={info[cur.id]!.url} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-block text-[11px] text-fg-dim hover:text-fg">Wikipedia en español →</a>
-            </div>
-          )}
-        </section>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-line bg-surface">
+            <header className="border-b border-line px-4 py-4">
+              <p className="label">{curPlanet ? "Planeta" : "Estrella"}</p>
+              <h2 className="mt-0.5 text-xl font-semibold">{curPlanet?.name ?? "Sol"}</h2>
+            </header>
+            {curPlanet
+              ? <Stats fromEarth={isEarth ? undefined : len(sub(curPlanet.pos, earthNow))} sun={isEarth ? len(earthNow) : len(curPlanet.pos)} speed={curPlanet.speed} />
+              : <Stats fromEarth={len(earthNow)} />}
+            <p className="border-t border-line px-4 py-2.5 text-xs text-fg-muted">Valores en vivo. Posición calculada con astronomy-engine (modelo planetario VSOP87) para la fecha y hora actuales.</p>
+          </section>
+        )}
+
+        {rows.length > 0 && (
+          <section className="rounded-lg border border-line bg-surface">
+            <header className="border-b border-line px-4 py-3"><h2 className="label !text-fg-muted">Todas las sondas · distancia a la Tierra</h2></header>
+            <ul className="divide-y divide-line">
+              {[...rows].sort((a, b) => b.fromEarth - a.fromEarth).map((r) => {
+                const on = probeKey(r.id) === sel;
+                return (
+                  <li key={r.id}>
+                    <button onClick={() => setSel(probeKey(r.id))} aria-pressed={on} className={clsx("flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors hover:bg-surface-2", on && "bg-surface-2")}>
+                      <span className="flex items-center gap-2"><span className={clsx("size-1.5 rotate-45", on ? "bg-accent" : "bg-fg-muted")} />{r.name}</span>
+                      <span className="num text-xs text-fg-muted" suppressHydrationWarning>{r.fromEarth > 10 * AU ? `${au(r.fromEarth)} ua` : `${km(r.fromEarth)} km`}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         <section className="rounded-lg border border-line bg-surface">
-          <header className="border-b border-line px-4 py-3"><h2 className="label !text-fg-muted">Todas las sondas · distancia a la Tierra</h2></header>
-          <ul className="divide-y divide-line">
-            {[...rows].sort((a, b) => b.fromEarth - a.fromEarth).map((r) => (
-              <li key={r.id}>
-                <button onClick={() => setSel(r.id)} className={clsx("flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors hover:bg-surface-2", r.id === sel && "bg-surface-2")}>
-                  <span className="flex items-center gap-2"><span className={clsx("size-1.5 rotate-45", r.id === sel ? "bg-accent" : "bg-fg-muted")} />{r.name}</span>
-                  <span className="num text-xs text-fg-muted" suppressHydrationWarning>{r.fromEarth > 10 * AU ? `${au(r.fromEarth)} ua` : `${km(r.fromEarth)} km`}</span>
+          <header className="border-b border-line px-4 py-3"><h2 className="label !text-fg-muted">El Sol y los planetas</h2></header>
+          <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-5 lg:grid-cols-2 2xl:grid-cols-5">
+            {[{ key: "sun", name: "Sol", color: "#ffd9a0" }, ...PLANETS.map((p) => ({ key: planetKey(p.b), name: p.name, color: p.color }))].map((p) => {
+              const on = p.key === sel;
+              return (
+                <button key={p.key} onClick={() => setSel(p.key)} aria-pressed={on} className={clsx("flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-2", on ? "bg-surface-2 text-fg" : "bg-surface text-fg-muted")}>
+                  <span className={clsx("size-2 shrink-0 rounded-full", on && "ring-1 ring-accent ring-offset-2 ring-offset-surface-2")} style={{ background: p.color }} />{p.name}
                 </button>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         </section>
       </div>
 
-      <Ladder rows={rows.map((r) => ({ id: r.id, name: r.name, d: r.fromEarth }))} sel={sel} onSel={setSel} />
+      {rows.length > 0 && <Ladder rows={rows.map((r) => ({ id: r.id, name: r.name, d: r.fromEarth }))} sel={sel} onSel={(id) => setSel(probeKey(id))} />}
     </div>
   );
 }
 
+function Stats({ fromEarth, sun, speed, radio }: { fromEarth?: number; sun?: number; speed?: number; radio?: boolean }) {
+  const cell = (label: string, main: string, sub2: string) => (
+    <div className="min-w-0 bg-surface p-4"><dt className="label">{label}</dt><dd className="num mt-1 text-lg leading-tight break-words" suppressHydrationWarning>{main}</dd><dd className="num text-xs text-fg-dim" suppressHydrationWarning>{sub2}</dd></div>
+  );
+  return (
+    // Celdas de ancho mínimo: con columnas estrechas pasan a una sola (las cifras largas nunca se cortan)
+    <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12.5rem),1fr))] gap-px bg-line">
+      {fromEarth != null && cell("Distancia a la Tierra", `${km(fromEarth)} km`, `${au(fromEarth)} ua`)}
+      {sun != null && cell("Distancia al Sol", `${km(sun)} km`, `${au(sun)} ua`)}
+      {fromEarth != null && cell(radio ? "Señal de radio tarda" : "La luz tarda", light(fromEarth / C_KM_S), "en llegar a la Tierra")}
+      {speed != null && cell("Velocidad respecto al Sol", `${speed.toLocaleString("es", { maximumFractionDigits: 2 })} km/s`, `${km(speed * 3600)} km/h`)}
+    </dl>
+  );
+}
+
 /** Distancias desde la Tierra en escala logarítmica, con referencias conocidas y el tiempo que tarda la luz. */
-function Ladder({ rows, sel, onSel }: { rows: { id: number; name: string; d: number }[]; sel: number; onSel: (id: number) => void }) {
+function Ladder({ rows, sel, onSel }: { rows: { id: number; name: string; d: number }[]; sel: SelKey; onSel: (id: number) => void }) {
   const W = 1000, H = 172, L = 20, Rr = 980, AX = 114;
   const lo = Math.log10(300_000), hi = Math.log10(30 * 1e9); // de 300 000 km a 30 000 millones de km
   const x = (km: number) => L + ((Math.log10(Math.max(km, 300_000)) - lo) / (hi - lo)) * (Rr - L);
@@ -221,7 +162,7 @@ function Ladder({ rows, sel, onSel }: { rows: { id: number; name: string; d: num
             </g>
           ))}
           {sorted.map((r, i) => {
-            const on = r.id === sel;
+            const on = probeKey(r.id) === sel;
             const y = AX - 16 - (i % 4) * 22;
             return (
               <g key={r.id} className="cursor-pointer" onClick={() => onSel(r.id)}>

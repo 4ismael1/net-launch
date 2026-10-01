@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Barra lateral contraída: <html data-sb="c"> se fija antes del primer pintado (sin salto al cargar) */
+@custom-variant sb-collapsed (html[data-sb="c"] &);
+
 /* ───────── Tokens: sala de operaciones, grafito cálido (sin tinte azul) ───────── */
 @theme {
   --color-bg: #0b0b0a;
@@ -19,7 +22,7 @@
   --color-tbc: #f5b83d;
   --color-tbd: #7a776f;
   --color-hold: #ff8a3d;
-  --color-flight: #38c6f4;
+  --color-flight: #e3cfa4;
   --color-success: #3fb97a;
   --color-failure: #ff4d4f;
   --color-partial: #c9785d;
@@ -34,6 +37,16 @@
   --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
   --animate-status-pop: status-pop 0.9s ease-out;
   --animate-fade-in: fade-in 0.6s ease-out;
+  --animate-pop-in: pop-in 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+  --animate-overlay-in: overlay-in 0.16s ease-out;
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes overlay-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
   @keyframes status-pop {
     0% { box-shadow: 0 0 0 0 rgb(255 255 255 / 0.5); transform: scale(1.12); }
     100% { box-shadow: 0 0 0 10px rgb(255 255 255 / 0); transform: scale(1); }
@@ -103,6 +116,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

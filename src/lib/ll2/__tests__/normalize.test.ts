@@ -22,4 +22,12 @@ describe("normLaunch", () => {
     expect(r.launch.net?.toISOString()).toBe("2026-10-01T15:10:00.000Z");
     expect(r.videos?.[0].typeName).toBe("Official Webcast");
   });
+
+  it("no guarda raw de un cohete en versión reducida (no pisa la ficha técnica)", () => {
+    const base = { id: "z", slug: "z", name: "Z", response_mode: "normal" };
+    const mini = normLaunch({ ...base, rocket: { configuration: { id: 164, name: "Falcon 9", full_name: "Falcon 9 Block 5" } } });
+    expect(mini.rocketConfig?.raw).toBeNull();
+    const full = normLaunch({ ...base, rocket: { configuration: { id: 164, name: "Falcon 9", response_mode: "detailed", max_stage: 2 } } });
+    expect(full.rocketConfig?.raw).not.toBeNull();
+  });
 });

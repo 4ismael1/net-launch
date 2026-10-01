@@ -11,6 +11,21 @@ type Pt = { id: number; name: string; lat: number; lng: number; location_name: s
 const KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
 const STYLE = KEY ? `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${KEY}` : "https://tiles.openfreemap.org/styles/dark";
 
+/** Contenido del popup con texto escapado (los nombres vienen de la BD: nada de HTML interpolado). */
+function popupContent(pr: { name: string; loc: string; total: number; up: number }) {
+  const root = document.createElement("div");
+  const line = (tag: string, text: string, style?: string) => {
+    const n = document.createElement(tag);
+    n.textContent = text;
+    if (style) n.setAttribute("style", style);
+    return n;
+  };
+  const stats = document.createElement("span");
+  stats.append(`${pr.total} lanzamientos · `, line("b", `${pr.up} próximos`, "color:#ff5b1f"));
+  root.append(line("strong", pr.name), document.createElement("br"), line("span", pr.loc), document.createElement("br"), stats);
+  return root;
+}
+
 /** Mapa mundial compacto del panel: continentes reales + plataformas; clic → mapa completo. */
 export function PanelMap({ points }: { points: Pt[] }) {
   const el = useRef<HTMLDivElement>(null);
@@ -55,20 +70,20 @@ export function PanelMap({ points }: { points: Pt[] }) {
           const f = e.features?.[0];
           if (!f) return;
           const pr = f.properties as { name: string; loc: string; total: number; up: number };
-          popup.setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number])
-            .setHTML(`<strong>${pr.name}</strong><br/><span>${pr.loc}</span><br/><span>${pr.total} lanzamientos · <b style="color:#ff5b1f">${pr.up} próximos</b></span>`)
-            .addTo(m);
+          popup.setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number]).setDOMContent(popupContent(pr)).addTo(m);
         });
         m.on("mouseleave", "p", () => { m.getCanvas().style.cursor = ""; popup.remove(); });
         m.on("click", "p", (e) => { const id = e.features?.[0]?.properties?.id; if (id) routerRef.current.push(`/mapa?pad=${id}`); });
       });
-      // Encuadrar siempre el mundo habitado, sea cual sea el tamaño de la tarjeta
-      const fit = () => map?.fitBounds([[-165, -48], [178, 68]], { padding: 8, animate: false });
+      // Encuadrar el mundo habitado según el tamaño de la tarjeta, hasta que el usuario mueva o acerque el mapa
+      let touched = false;
+      const fit = () => { if (!touched) map?.fitBounds([[-165, -48], [178, 68]], { padding: 8, animate: false }); };
       map.once("load", () => {
         fit();
         el.current?.querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
       });
       map.on("resize", fit);
+      map.on("movestart", (e) => { if (e.originalEvent) touched = true; });
     });
     return () => { cancelled = true; map?.remove(); };
   }, [points]);

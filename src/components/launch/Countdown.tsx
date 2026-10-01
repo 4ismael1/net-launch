@@ -2,10 +2,7 @@
 
 import clsx from "clsx";
 import { useNow } from "@/lib/hooks/client";
-import { isPrecise, netLabel, splitCountdown } from "@/lib/format";
-
-const PENDING = ["Go", "TBC", "TBD", "Hold"];
-const DONE = ["Success", "Failure", "Partial Failure"];
+import { DONE_STATUSES as DONE, PENDING_STATUSES as PENDING, isExact, isPrecise, netLabel, splitCountdown } from "@/lib/format";
 
 /**
  * Cuenta regresiva calculada localmente (sin llamadas a APIs). Solo si la fecha es precisa.
@@ -33,13 +30,15 @@ export function Countdown({
   const past = now !== null && now >= target;
   const c = now === null ? null : splitCountdown(target - now);
   const pad = (n: number) => String(n).padStart(2, "0");
+  // Precisión de hora (HR): solo días y horas, sin falsa precisión de minutos y segundos.
+  const approx = !isExact(precision);
 
   // Tras T−0
   const flying = past && status === "In Flight";
   const waiting = past && (!status || PENDING.includes(status));
   const finished = past && !!status && DONE.includes(status);
   const hold = status === "Hold";
-  const note = flying ? "En vuelo · confirmado por la fuente" : hold ? "Cuenta regresiva en espera (HOLD) · puede cambiar la hora" : waiting ? "Hora prevista superada · esperando confirmación" : null;
+  const note = flying ? "En vuelo · confirmado por la fuente" : hold ? "Cuenta regresiva en espera (HOLD) · puede cambiar la hora" : waiting ? "Hora prevista superada · esperando confirmación" : approx ? "Hora aproximada · la fuente la da con precisión de una hora" : null;
 
   if (finished && size !== "sm") {
     return <span className="num text-sm text-fg-muted">Lanzado · resultado publicado</span>;
@@ -48,21 +47,22 @@ export function Countdown({
   if (size === "sm")
     return (
       <span className={clsx("num text-xs", waiting ? "text-tbc" : flying ? "text-flight" : "text-fg")}>
-        T{c?.sign ?? "−"} {c ? `${c.d > 0 ? `${c.d}d ` : ""}${pad(c.h)}:${pad(c.m)}:${pad(c.s)}` : "--:--:--"}
+        {approx && "≈ "}T{c?.sign ?? "−"} {c ? (approx ? `${c.d > 0 ? `${c.d}d ` : ""}${c.h}h` : `${c.d > 0 ? `${c.d}d ` : ""}${pad(c.h)}:${pad(c.m)}:${pad(c.s)}`) : "--:--:--"}
         {waiting && " · por confirmar"}
       </span>
     );
 
   const md = size === "md";
-  const cells: [string, string][] = c
+  const all: [string, string][] = c
     ? [[String(c.d), "días"], [pad(c.h), "horas"], [pad(c.m), "min"], [pad(c.s), "seg"]]
     : [["--", "días"], ["--", "horas"], ["--", "min"], ["--", "seg"]];
+  const cells = approx ? all.slice(0, 2) : all;
 
   return (
     <div>
       <div className="flex items-end gap-1" aria-label="Cuenta regresiva" role="timer">
         <span className={clsx("num mr-1", flying ? "text-flight" : waiting ? "text-tbc" : "text-fg-dim", md ? "mb-4 text-xl" : "mb-1 text-2xl sm:text-3xl")}>
-          T{c?.sign ?? "−"}
+          {approx && "≈"}T{c?.sign ?? "−"}
         </span>
         {cells.map(([v, l], i) => (
           <div key={l} className="flex items-end gap-1">
@@ -75,8 +75,8 @@ export function Countdown({
         ))}
       </div>
       {note && (
-        <p className={clsx("mt-2 flex items-center gap-1.5 text-xs", flying ? "text-flight" : hold ? "text-hold" : "text-tbc")}>
-          <span className={clsx("size-1.5 rounded-full animate-pulse-dot", flying ? "bg-flight" : hold ? "bg-hold" : "bg-tbc")} />
+        <p className={clsx("mt-2 flex items-center gap-1.5 text-xs", flying ? "text-flight" : hold ? "text-hold" : waiting ? "text-tbc" : "text-fg-dim")}>
+          <span className={clsx("size-1.5 rounded-full", flying ? "bg-flight animate-pulse-dot" : hold ? "bg-hold animate-pulse-dot" : waiting ? "bg-tbc animate-pulse-dot" : "bg-fg-dim")} />
           {note}
         </p>
       )}

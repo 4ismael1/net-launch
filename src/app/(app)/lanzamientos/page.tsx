@@ -7,7 +7,10 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ExploreFilters } from "@/components/explore/ExploreFilters";
 import { LaunchTile } from "@/components/launch/LaunchTile";
 
-export const metadata: Metadata = { title: "Lanzamientos" };
+export const metadata: Metadata = {
+  title: "Lanzamientos",
+  description: "Explorador de lanzamientos espaciales próximos y pasados de todo el mundo, con filtros por operador, país, cohete, base y fechas.",
+};
 
 export default function LanzamientosPage({ searchParams }: PageProps<"/lanzamientos">) {
   return (
@@ -40,14 +43,14 @@ async function Results({ searchParams }: Pick<PageProps<"/lanzamientos">, "searc
       <ExploreFilters options={options} total={total} />
       {rows.length === 0 ? (
         <div className="rounded-lg border border-line bg-surface px-4 py-16 text-center text-sm text-fg-muted">
-          Ningún lanzamiento coincide con estos filtros.
+          {total > 0 && page > pages ? <>Esta página no existe. <Link href={href(pages)} className="text-fg underline underline-offset-2">Ir a la página {pages}</Link></> : "Ningún lanzamiento coincide con estos filtros."}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {rows.map((l) => <LaunchTile key={l.id} l={l} />)}
         </div>
       )}
-      {pages > 1 && (
+      {pages > 1 && page <= pages && (
         <nav className="mt-6 flex items-center justify-center gap-2 text-sm" aria-label="Paginación">
           {page > 1 ? <Link href={href(page - 1)} className="inline-flex h-9 items-center gap-1 rounded-md border border-line px-3 hover:bg-surface-2"><ChevronLeft className="size-4" /> Anterior</Link> : <span />}
           <span className="num px-3 text-fg-muted">{page} / {pages}</span>

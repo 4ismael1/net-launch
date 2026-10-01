@@ -26,6 +26,9 @@ const STYLES = {
   satellite: MAPTILER_KEY ? `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}` : null,
 };
 
+const VIEWS: View[] = ["all", "upcoming", "recent"];
+const asView = (v: string | null): View => (VIEWS.includes(v as View) ? (v as View) : "all");
+
 const C = { accent: "#ff5b1f", recent: "#a6a39a", old: "#4d4a44", bg: "#0b0b0a", cluster: "#5e5b54" };
 
 function toGeoJSON(pads: MapPad[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
@@ -55,13 +58,13 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
   const router = useRouter();
   const params = useSearchParams();
 
-  const [view, setView] = useState<View>((params.get("vista") as View) ?? "all");
+  const [view, setView] = useState<View>(asView(params.get("vista")));
   const [country, setCountry] = useState(params.get("pais") ?? "");
   const [operator, setOperator] = useState(params.get("op") ?? "");
   const [globe, setGlobe] = useState(false);
   const [base, setBase] = useState<"dark" | "satellite">("dark");
   const [selected, setSelected] = useState<number | null>(params.get("pad") ? Number(params.get("pad")) : null);
-  const [activity, setActivity] = useState<{ id: number; rows: Activity[] } | null>(null);
+  const [activity, setActivity] = useState<{ id: number; rows: Activity[] | null } | null>(null); // rows null = error
   const [styleVersion, setStyleVersion] = useState(0); // sube cada vez que (re)carga un estilo
   const baseRef = useRef(base);
   baseRef.current = base;
@@ -81,7 +84,9 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
     [pads],
   );
   const pad = selected ? pads.find((p) => p.id === selected) ?? null : null;
-  const rows = activity?.id === selected ? activity.rows : null;
+  const act = activity?.id === selected ? activity : null;
+  const rows = act?.rows ?? null;
+  const actError = !!act && act.rows === null;
   const padRef = useRef(pad);
   padRef.current = pad;
 
@@ -92,7 +97,7 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
   if (urlKey !== seenUrl) {
     const p = new URLSearchParams(urlKey);
     setSeenUrl(urlKey);
-    setView((p.get("vista") as View) ?? "all");
+    setView(asView(p.get("vista")));
     setCountry(p.get("pais") ?? "");
     setOperator(p.get("op") ?? "");
     setSelected(p.get("pad") ? Number(p.get("pad")) : null);
@@ -114,7 +119,8 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
       setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
       map = new Map({
         container: el.current, locale: MAP_LOCALE,
-        style: STYLES.dark,
+        // Al volver a la página (Activity) se recrea con el mapa base elegido, no siempre el oscuro
+        style: (baseRef.current === "satellite" && STYLES.satellite) || STYLES.dark,
         center: padRef.current ? [padRef.current.lng, padRef.current.lat] : [0, 20],
         zoom: padRef.current ? 9 : 1.4,
         minZoom: 0.8,
@@ -124,6 +130,22 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
       map.addControl(new NavigationControl({ showCompass: true, visualizePitch: true }), "bottom-right");
       map.addControl(new AttributionControl({ compact: true, customAttribution: "Datos de lanzamientos: The Space Devs" }), "bottom-left");
       map.on("style.load", () => setupLayers(map!));
+      // Interacción con las capas propias: una sola vez (sobreviven a setStyle; registrarlas en cada carga las duplicaría)
+      const m = map;
+      m.on("click", "clusters", async (e) => {
+        const f = e.features?.[0] as MapGeoJSONFeature | undefined;
+        if (!f) return;
+        const zoom = await (m.getSource("pads") as GeoJSONSource).getClusterExpansionZoom(f.properties.cluster_id);
+        m.easeTo({ center: (f.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
+      });
+      m.on("click", "pads", (e) => {
+        const id = e.features?.[0]?.properties?.id;
+        if (id) setSelected(Number(id));
+      });
+      for (const l of ["clusters", "pads"]) {
+        m.on("mouseenter", l, () => (m.getCanvas().style.cursor = "pointer"));
+        m.on("mouseleave", l, () => (m.getCanvas().style.cursor = ""));
+      }
       // Atribución plegada por defecto (sigue accesible con el botón "i")
       map.once("load", () => el.current?.querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show"));
       mapRef.current = map;
@@ -190,20 +212,6 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
       },
     });
 
-    map.on("click", "clusters", async (e) => {
-      const f = e.features?.[0] as MapGeoJSONFeature | undefined;
-      if (!f) return;
-      const zoom = await (map.getSource("pads") as GeoJSONSource).getClusterExpansionZoom(f.properties.cluster_id);
-      map.easeTo({ center: (f.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
-    });
-    map.on("click", "pads", (e) => {
-      const id = e.features?.[0]?.properties?.id;
-      if (id) setSelected(Number(id));
-    });
-    for (const l of ["clusters", "pads"]) {
-      map.on("mouseenter", l, () => (map.getCanvas().style.cursor = "pointer"));
-      map.on("mouseleave", l, () => (map.getCanvas().style.cursor = ""));
-    }
     syncData(map);
     setStyleVersion((v) => v + 1);
   }
@@ -238,14 +246,21 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
   // Selección: estado visual, vuelo y carga de actividad
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !pad) return;
+    if (!map) return;
+    const ready = () => map.isStyleLoaded() && !!map.getSource("pads");
+    if (!pad) {
+      // Al cerrar la ficha se quita el anillo de selección
+      if (ready()) map.removeFeatureState({ source: "pads" });
+      return;
+    }
     const go = () => {
       map.removeFeatureState({ source: "pads" });
       map.setFeatureState({ source: "pads", id: pad.id }, { selected: true });
       map.flyTo({ center: [pad.lng, pad.lat], zoom: Math.max(map.getZoom(), base === "satellite" ? 14 : 10), speed: 1.4 });
     };
-    if (map.isStyleLoaded() && map.getSource("pads")) go();
-    else map.once("idle", go);
+    if (ready()) { go(); return; }
+    map.once("idle", go);
+    return () => { map.off("idle", go); }; // una selección nueva antes de estar listo no vuela a la anterior
     // styleVersion: el mapa se crea de forma asíncrona; al estar listo se vuela a la plataforma pedida
   }, [pad, base, styleVersion]);
 
@@ -253,16 +268,16 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
     if (!selected) return;
     const ctrl = new AbortController();
     fetch(`/api/pads/${selected}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((rows: Activity[]) => setActivity({ id: selected, rows }))
-      .catch(() => {});
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((rows: Activity[]) => setActivity({ id: selected, rows: Array.isArray(rows) ? rows : null }))
+      .catch(() => { if (!ctrl.signal.aborted) setActivity({ id: selected, rows: null }); });
     return () => ctrl.abort();
   }, [selected]);
 
   const topPads = useMemo(() => [...filtered].sort((a, b) => b.upcoming - a.upcoming || b.recent - a.recent).slice(0, 8), [filtered]);
 
   return (
-    <div className="relative flex h-[calc(100dvh-56px-64px)] flex-col overflow-hidden md:h-[calc(100dvh-56px)] md:flex-row">
+    <div className="relative flex h-[calc(100dvh-56px-4rem-env(safe-area-inset-bottom))] flex-col overflow-hidden md:h-[calc(100dvh-56px)] md:flex-row">
       <div ref={el} className="relative min-h-0 flex-1 bg-bg" />
 
       {/* Controles flotantes */}
@@ -320,8 +335,14 @@ export function WorldMap({ pads, operators }: { pads: MapPad[]; operators: MapOp
                 </Link>
               </div>
             )}
-            <ActivityList title="Próximos" rows={rows?.filter((r) => r.kind === "upcoming")} empty="Sin lanzamientos programados." />
-            <ActivityList title="Recientes" rows={rows?.filter((r) => r.kind === "recent")} empty="Sin resultados registrados." />
+            {actError ? (
+              <p className="border-b border-line px-4 py-4 text-xs text-fg-dim">No se pudo cargar la actividad de esta plataforma. Inténtalo más tarde.</p>
+            ) : (
+              <>
+                <ActivityList title="Próximos" rows={rows?.filter((r) => r.kind === "upcoming")} empty="Sin lanzamientos programados." />
+                <ActivityList title="Recientes" rows={rows?.filter((r) => r.kind === "recent")} empty="Sin resultados registrados." />
+              </>
+            )}
             <div className="p-4">
               {pad.locationId && (
                 <Link href={`/bases/${pad.locationId}`} className="inline-flex items-center gap-1 text-sm text-accent hover:underline">

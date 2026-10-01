@@ -13,6 +13,9 @@ function cached() {
 
 export { AGENCY_TYPES, typeLabel } from "./entities-labels";
 
+/** Id válido para una columna int4 (evita errores SQL con NaN, decimales o fuera de rango). */
+const validId = (id: number) => Number.isInteger(id) && id > 0 && id <= 2147483647;
+
 const launchCols = {
   id: L.id, slug: L.slug, name: L.name, statusAbbrev: L.statusAbbrev, statusName: L.statusName, net: L.net,
   netPrecision: L.netPrecision, windowStart: L.windowStart, windowEnd: L.windowEnd, missionName: L.missionName,
@@ -82,6 +85,7 @@ export async function listOrganizations(opts: { q?: string; tipo?: string; pais?
 export async function getOrganization(id: number) {
   "use cache";
   cached();
+  if (!validId(id)) return null;
   const [org] = await db.select().from(A).where(eq(A.id, id)).limit(1);
   if (!org) return null;
   const col = eq(L.providerId, id);
@@ -131,6 +135,7 @@ export async function listLocations() {
 export async function getLocation(id: number) {
   "use cache";
   cached();
+  if (!validId(id)) return null;
   const [loc] = await db.select().from(LOC).where(eq(LOC.id, id)).limit(1);
   if (!loc) return null;
   const col = eq(L.locationId, id);
@@ -177,6 +182,7 @@ export async function listRockets(opts: { q?: string; estado?: "activos" | "reti
 export async function getRocket(id: number) {
   "use cache";
   cached();
+  if (!validId(id)) return null;
   const [row] = await db
     .select({ r: R, maker: { id: A.id, name: A.name, countryCodes: A.countryCodes } })
     .from(R)

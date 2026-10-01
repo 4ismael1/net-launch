@@ -4,14 +4,21 @@ import { notFound } from "next/navigation";
 import { Streamed } from "@/components/ui/Streamed";
 import { ChevronRight, ExternalLink, Info } from "lucide-react";
 import { getLaunchDetail } from "@/lib/data/launch-detail";
+import { getRecent } from "@/lib/data/launches";
 import { derived, getLaunchObjects, orbitClass } from "@/lib/orbit";
 import { Card, CardHeader, Empty } from "@/components/ui/Card";
 import { OrbitViewer } from "@/components/orbit/OrbitViewer";
 import { LocalTime } from "@/components/launch/LocalTime";
 
+export async function generateStaticParams() {
+  const slugs = (await getRecent(6)).map((l) => ({ slug: l.slug }));
+  return slugs.length ? slugs : [{ slug: "sin-lanzamientos" }]; // Next exige al menos uno
+}
+
 export async function generateMetadata({ params }: PageProps<"/orbita/[slug]">): Promise<Metadata> {
   const d = await getLaunchDetail((await params).slug);
-  return { title: d ? `Órbita · ${d.l.name}` : "Seguimiento orbital" };
+  if (!d) return { title: "Lanzamiento no encontrado" };
+  return { title: `Órbita · ${d.l.name}`, description: `Objetos catalogados tras el lanzamiento ${d.l.name}, con su órbita calculada (SGP4) a partir de elementos orbitales públicos de CelesTrak.` };
 }
 
 export default function Page({ params }: PageProps<"/orbita/[slug]">) {
@@ -49,7 +56,9 @@ async function Content({ params }: Pick<PageProps<"/orbita/[slug]">, "params">) 
         </p>
       </header>
 
-      {objects === null ? (
+      {!des ? (
+        <Card><Empty>Este lanzamiento no tiene designador COSPAR: aún no ha despegado o no alcanzó la órbita, así que no hay objetos que seguir.</Empty></Card>
+      ) : objects === null ? (
         <Card><Empty>CelesTrak no está disponible en este momento. El resto de la misión sigue accesible.</Empty></Card>
       ) : objects.length === 0 ? (
         <Card><Empty>Todavía no hay objetos catalogados públicamente para este lanzamiento (el catálogo suele tardar horas o días).</Empty></Card>
@@ -69,9 +78,10 @@ async function Content({ params }: Pick<PageProps<"/orbita/[slug]">, "params">) 
                     return (
                       <tr key={o.NORAD_CAT_ID}>
                         <td className="px-4 py-2">
-                          <a href={`https://celestrak.org/satcat/table-satcat.php?CATNR=${o.NORAD_CAT_ID}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">
-                            {o.OBJECT_NAME} <ExternalLink className="size-3 text-fg-dim" />
-                          </a>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Link href={`/satelites/${o.NORAD_CAT_ID}`} className="hover:underline">{o.OBJECT_NAME}</Link>
+                            <a href={`https://celestrak.org/satcat/table-satcat.php?CATNR=${o.NORAD_CAT_ID}`} target="_blank" rel="noopener noreferrer" aria-label={`${o.OBJECT_NAME} en CelesTrak`} className="text-fg-dim hover:text-fg"><ExternalLink className="size-3" /></a>
+                          </span>
                         </td>
                         <td className="num px-4 py-2 text-fg-muted">{o.NORAD_CAT_ID}</td>
                         <td className="num px-4 py-2">{orbitClass(o)}</td>

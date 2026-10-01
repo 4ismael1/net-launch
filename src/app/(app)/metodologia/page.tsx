@@ -4,13 +4,22 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/launch/StatusBadge";
 
-export const metadata: Metadata = { title: "Metodología" };
+export const metadata: Metadata = {
+  title: "Metodología",
+  description: "Cómo se obtienen, actualizan y presentan los datos de la plataforma, sus fuentes públicas y lo que deliberadamente no muestra.",
+};
 
 const SOURCES = [
   { name: "Launch Library 2 (The Space Devs)", url: "https://thespacedevs.com/llapi", use: "Fuente principal: lanzamientos, estados, fechas, ventanas, operadores, cohetes, bases, plataformas, transmisiones, eventos, astronautas y estaciones.", freq: "Sincronización cada 15 min (cambios por last_updated); catálogo semanal; instantáneas cada 3 h. Límite respetado: ≤14 peticiones/hora." },
   { name: "OpenStreetMap · OpenFreeMap / MapTiler", url: "https://www.openstreetmap.org/copyright", use: "Cartografía base del mapa mundial y los minimapas.", freq: "Teselas servidas por el proveedor; nunca se usan los servidores públicos de OSM." },
   { name: "Open-Meteo", url: "https://open-meteo.com/", use: "Clima contextual de cada plataforma y pronóstico a la hora prevista.", freq: "Consulta desde el servidor con caché de 30 min." },
-  { name: "CelesTrak (GP / OMM)", url: "https://celestrak.org/", use: "Elementos orbitales de los objetos catalogados tras cada lanzamiento y de las estaciones.", freq: "Caché de 6 h (CelesTrak actualiza cada 2 h)." },
+  { name: "CelesTrak (GP / OMM · SATCAT)", url: "https://celestrak.org/", use: "Elementos orbitales de los objetos catalogados tras cada lanzamiento, de las estaciones y de los grupos de satélites; catálogo SATCAT para la población orbital.", freq: "Caché de 3 a 6 h (CelesTrak actualiza cada 2 h); SATCAT semanal." },
+  { name: "NASA/JPL Horizons", url: "https://ssd.jpl.nasa.gov/horizons/", use: "Efemérides de las sondas del sistema solar (Más allá de la órbita).", freq: "Caché de 12 h." },
+  { name: "NASA/JPL CNEOS · SBDB Close-Approach Data", url: "https://ssd-api.jpl.nasa.gov/doc/cad.html", use: "Acercamientos de asteroides y cometas a la Tierra.", freq: "Caché de 3 h." },
+  { name: "NASA APOD (Astronomy Picture of the Day)", url: "https://apod.nasa.gov/", use: "Imagen astronómica del día con su explicación y créditos.", freq: "Caché de 30 min." },
+  { name: "Spaceflight News API (The Space Devs)", url: "https://spaceflightnewsapi.net/", use: "Noticias de medios especializados y agencias, generales y por lanzamiento.", freq: "Consulta al visitar, con caché de 30 min." },
+  { name: "Wikipedia (español)", url: "https://es.wikipedia.org/", use: "Resúmenes e imágenes de organizaciones, bases, vehículos, astronautas y sondas, enlazados a su artículo.", freq: "Caché de semanas." },
+  { name: "astronomy-engine", url: "https://github.com/cosinekitty/astronomy", use: "Posiciones del Sol, la Luna y los planetas calculadas en el navegador (Esta noche, Más allá de la órbita).", freq: "Cálculo local, sin peticiones." },
   { name: "Gemini (Google AI Studio)", url: "https://ai.google.dev/", use: "Traducción automática al español de las descripciones de LL2, señalada como tal y con el original disponible.", freq: "Cada texto se traduce una sola vez y se guarda." },
   { name: "Natural Earth (world-atlas)", url: "https://www.naturalearthdata.com/", use: "Contornos continentales del globo 3D (dominio público).", freq: "Estático." },
 ];

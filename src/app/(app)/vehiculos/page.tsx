@@ -6,8 +6,12 @@ import { listRockets } from "@/lib/data/entities";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { UrlFilters } from "@/components/entity/UrlFilters";
 import { Flag } from "@/components/ui/Flag";
+import { Card, Empty } from "@/components/ui/Card";
 
-export const metadata: Metadata = { title: "Vehículos" };
+export const metadata: Metadata = {
+  title: "Vehículos",
+  description: "Cohetes y sus configuraciones: vuelos, tasa de éxito, próximos lanzamientos y fabricante.",
+};
 
 export default function Page({ searchParams }: PageProps<"/vehiculos">) {
   return (
@@ -31,9 +35,11 @@ async function List({ searchParams }: Pick<PageProps<"/vehiculos">, "searchParam
         { kind: "search", key: "q", placeholder: "Buscar cohete o familia…" },
         { kind: "segmented", key: "estado", options: [["", "Todos"], ["activos", "Activos"], ["retirados", "Retirados"]] },
       ]} />
+      {rows.length === 0 && <Card><Empty>Ningún vehículo coincide con estos filtros.</Empty></Card>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {rows.map((r) => {
-          const rate = r.total && r.success != null ? Math.round((r.success / r.total) * 100) : null;
+          // Misma fórmula que la ficha del vehículo: éxitos / lanzamientos realizados (LL2)
+          const rate = r.total && r.success != null ? Math.round((r.success / r.total) * 1000) / 10 : null;
           return (
             <Link key={r.id} href={`/vehiculos/${r.id}`} className="group flex gap-3 rounded-lg border border-line bg-surface p-3 transition-colors hover:border-line-strong">
               <div className="flex h-24 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface-3">
@@ -46,7 +52,7 @@ async function List({ searchParams }: Pick<PageProps<"/vehiculos">, "searchParam
                 <p className="truncate text-[14px] font-medium">{r.full_name ?? r.name}</p>
                 <p className="truncate text-xs text-fg-dim">{r.country_codes?.[0] && <Flag code={r.country_codes[0]} />} {r.manufacturer ?? "—"}</p>
                 <div className="mt-auto flex items-end justify-between gap-2 text-xs">
-                  <span className="text-fg-muted"><span className="num text-fg">{r.total ?? 0}</span> vuelos{rate !== null && <> · <span className="num">{rate} %</span> éxito</>}</span>
+                  <span className="text-fg-muted">{r.total != null ? <><span className="num text-fg">{r.total.toLocaleString("es")}</span> {r.total === 1 ? "vuelo" : "vuelos"}</> : "Vuelos sin información pública"}{rate !== null && <> · <span className="num">{rate.toLocaleString("es")} %</span> éxito</>}</span>
                   {r.upcoming > 0 ? <span className="num text-accent">{r.upcoming} próx.</span> : r.active === false && <span className="text-fg-dim">Retirado</span>}
                 </div>
               </div>

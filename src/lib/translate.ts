@@ -7,12 +7,13 @@ const SYSTEM =
   "NO traduzcas nombres propios: misiones, cohetes, naves, agencias, empresas, programas, bases y plataformas (p. ej. Falcon 9, Crew Dragon, Starlink, Commercial Crew Program, Cape Canaveral). " +
   'Devuelve exclusivamente JSON {"t": [..]} con las traducciones en el mismo orden y la misma cantidad que la entrada.';
 
-export async function translateBatch(texts: string[]): Promise<string[] | null> {
+/** `timeoutMs`: el sincronizador lo acorta para no pasarse del plazo de la función (máx. 60 s). */
+export async function translateBatch(texts: string[], timeoutMs = 60_000): Promise<string[] | null> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key || !texts.length) return null;
+  if (!key || !texts.length || timeoutMs < 1000) return null;
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
     method: "POST",
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(Math.min(timeoutMs, 60_000)),
     headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM }] },

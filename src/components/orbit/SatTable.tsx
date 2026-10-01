@@ -5,13 +5,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { OMM } from "@/lib/orbit";
-import { classify, ORBIT_COLORS, type OrbitKey } from "./ConstellationGlobe";
-
-const MU = 398600.4418;
-function params(o: OMM) {
-  const n = (o.MEAN_MOTION * 2 * Math.PI) / 86400, a = Math.cbrt(MU / (n * n));
-  return { period: 1440 / o.MEAN_MOTION, apo: a * (1 + o.ECCENTRICITY) - 6378, per: a * (1 - o.ECCENTRICITY) - 6378 };
-}
+import { classify, orbitParams, ORBIT_COLORS, type OrbitKey } from "./orbitMeta";
 type SortKey = "name" | "norad" | "per" | "inc" | "period" | "epoch";
 const PAGE = 50;
 const nf = (v: number, d = 0) => v.toLocaleString("es", { maximumFractionDigits: d });
@@ -21,9 +15,9 @@ export function SatTable({ objects }: { objects: OMM[] }) {
   const [q, setQ] = useState("");
   const [orbit, setOrbit] = useState<OrbitKey | "">("");
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: "name", dir: 1 });
-  const [page, setPage] = useState(0);
+  const [pageRaw, setPage] = useState(0);
 
-  const rows = useMemo(() => objects.map((o) => ({ o, cls: classify(o), ...params(o) })), [objects]);
+  const rows = useMemo(() => objects.map((o) => ({ o, cls: classify(o), ...orbitParams(o) })), [objects]);
   const counts = useMemo(() => rows.reduce((m, r) => ({ ...m, [r.cls]: (m[r.cls] ?? 0) + 1 }), {} as Record<string, number>), [rows]);
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -33,6 +27,7 @@ export function SatTable({ objects }: { objects: OMM[] }) {
     return f.sort((a, b) => (val(a) < val(b) ? -1 : val(a) > val(b) ? 1 : 0) * sort.dir);
   }, [rows, q, orbit, sort]);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const page = Math.min(pageRaw, pages - 1); // la lista puede encoger (grupos desmarcados): nunca una página vacía
   const view = filtered.slice(page * PAGE, page * PAGE + PAGE);
 
   const th = (k: SortKey, label: string) => (

@@ -10,6 +10,7 @@ import {
   primaryKey,
   serial,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -144,6 +145,13 @@ export const launches = pgTable(
     index("launches_location_idx").on(t.locationId),
     index("launches_country_idx").on(t.countryCode),
     index("launches_slug_idx").on(t.slug),
+    index("launches_rocket_config_idx").on(t.rocketConfigId),
+    index("launches_designator_idx").on(t.launchDesignator), // satélite → lanzamiento (COSPAR)
+    // hash (sin límite de tamaño de clave, a diferencia de btree): el traductor actualiza por texto exacto
+    index("launches_mission_description_hash_idx").using("hash", t.missionDescription),
+    // Contención JSON (@>): lanzamientos de un programa y tripulación de un astronauta
+    index("launches_program_gin").using("gin", sql`(${t.raw}->'program')`),
+    index("launches_spacecraft_stage_gin").using("gin", sql`((${t.raw}->'rocket')->'spacecraft_stage')`),
   ],
 );
 
@@ -188,15 +196,20 @@ export const syncState = pgTable("sync_state", {
   updatedAt: tstz("updated_at").defaultNow().notNull(),
 });
 
-export const syncRuns = pgTable("sync_runs", {
-  id: serial("id").primaryKey(),
-  startedAt: tstz("started_at").defaultNow().notNull(),
-  finishedAt: tstz("finished_at"),
-  ok: boolean("ok"),
-  requests: integer("requests").default(0).notNull(),
-  launchesUpserted: integer("launches_upserted").default(0).notNull(),
-  log: jsonb("log"),
-});
+export const syncRuns = pgTable(
+  "sync_runs",
+  {
+    id: serial("id").primaryKey(),
+    startedAt: tstz("started_at").defaultNow().notNull(),
+    finishedAt: tstz("finished_at"),
+    ok: boolean("ok"),
+    requests: integer("requests").default(0).notNull(),
+    launchesUpserted: integer("launches_upserted").default(0).notNull(),
+    log: jsonb("log"),
+  },
+  // "Última sincronización" (ok y con consultas) y limpieza por antigüedad
+  (t) => [index("sync_runs_finished_idx").on(t.finishedAt), index("sync_runs_started_idx").on(t.startedAt)],
+);
 
 // Catálogos de LL2 (propulsores, aterrizajes, programas, astronautas, naves): un documento por objeto
 export const catalog = pgTable(

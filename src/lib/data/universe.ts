@@ -6,6 +6,8 @@ import type { SatcatSummary } from "@/lib/satcat";
 import { ensureEs } from "@/lib/i18n";
 
 const UA = { "User-Agent": "NET-plataforma-universitaria (UPB)" };
+// Si una API externa falla, el resultado se guarda poco tiempo (expire 300 s = mínimo que no excluye del prerender)
+const FAIL = { stale: 60, revalidate: 120, expire: 300 };
 
 export async function getSatcat() {
   "use cache";
@@ -97,7 +99,6 @@ const cadDate = (s: string) => {
 
 export async function getApproaches() {
   "use cache";
-  cacheLife({ stale: 600, revalidate: 3600 * 3, expire: 86400 * 2 });
   const q = (min: string, max: string, dist: string) =>
     fetch(`https://ssd-api.jpl.nasa.gov/cad.api?date-min=${min}&date-max=${max}&dist-max=${dist}&fullname=true&diameter=true&sort=date`, { signal: AbortSignal.timeout(15_000), headers: UA })
       .then((r) => (r.ok ? r.json() : null))
@@ -122,7 +123,11 @@ export async function getApproaches() {
       };
     });
   };
-  return { near: parse(j), big: parse(big).slice(0, 12), at: Date.now() };
+  // Fallo de JPL ≠ "no hay acercamientos": sin la consulta principal no se devuelve nada (la página muestra el aviso);
+  // si solo falla la de los grandes, bigUnavailable lo indica. En ambos casos, caché corta para reintentar pronto.
+  cacheLife(j && big ? { stale: 600, revalidate: 3600 * 3, expire: 86400 * 2 } : FAIL);
+  if (!j) return { near: [] as Approach[], big: [] as Approach[], bigUnavailable: true, at: Date.now() };
+  return { near: parse(j), big: parse(big).slice(0, 12), bigUnavailable: !big, at: Date.now() };
 }
 
 // ───────────── Imagen astronómica del día (NASA APOD) ─────────────
@@ -150,7 +155,12 @@ const sized = (u: string, w: number, h?: number) => {
 
 export async function getApod() {
   "use cache";
-  cacheLife({ stale: 600, revalidate: 1800, expire: 86400 * 2 });
+  const r = await fetchApod();
+  cacheLife(r?.length ? { stale: 600, revalidate: 1800, expire: 86400 * 2 } : FAIL);
+  return r;
+}
+
+async function fetchApod() {
   try {
     const r = await fetch("https://science.nasa.gov/feed/apod-basic/", { signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "Mozilla/5.0 (NET-plataforma-universitaria)" } });
     if (!r.ok) return null;
