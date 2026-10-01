@@ -1,7 +1,7 @@
 import { after, connection } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getLaunchLive, getLiveState } from "@/lib/data/live";
-import { minutesSinceLastSync, runSync } from "@/lib/sync/run";
+import { markAttempt, minutesSinceLastAttempt, minutesSinceLastSync, runSync } from "@/lib/sync/run";
 
 export const maxDuration = 60;
 
@@ -17,6 +17,10 @@ export async function GET(req: Request) {
     try {
       const m = await minutesSinceLastSync();
       if (m !== null && m < 15) return;
+      // Como mucho un intento cada 10 min, aunque haya muchos visitantes a la vez
+      const last = await minutesSinceLastAttempt();
+      if (last !== null && last < 10) return;
+      await markAttempt();
       const r = await runSync({ source: "web", deadlineMs: 40_000, maxTranslateRequests: 2 });
       if (r.upserted > 0) revalidateTag("ll2", "max");
     } catch (e) {

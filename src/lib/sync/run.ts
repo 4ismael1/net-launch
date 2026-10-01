@@ -41,6 +41,14 @@ async function acquireLock() {
 }
 const releaseLock = () => setState("sync_lock", 0);
 
+/** Minutos desde el último INTENTO de sincronización (con o sin consultas). */
+export async function minutesSinceLastAttempt() {
+  const { rows } = await db.execute<{ m: number | null }>(sql`
+    SELECT extract(epoch FROM (now() - max(updated_at))) / 60 AS m FROM sync_state WHERE key = 'autosync_attempt'`);
+  return rows[0]?.m == null ? null : Number(rows[0].m);
+}
+export const markAttempt = () => setState("autosync_attempt", Date.now());
+
 /** Minutos desde la última sincronización que llegó a consultar LL2 (null si nunca). */
 export async function minutesSinceLastSync() {
   const { rows } = await db.execute<{ m: number | null }>(sql`
@@ -158,13 +166,15 @@ async function syncInner(opts: SyncOptions): Promise<SyncResult> {
     say("cursores reiniciados");
   }
   say(`origen: ${opts.source}`);
-  const [run] = await db.insert(schema.syncRuns).values({}).returning();
   const now = Date.now();
   let upserted = 0;
 
   // Ventana deslizante de 1 h con las peticiones de ejecuciones anteriores.
   const history = (await getState<number[]>(`ll2_request_log:${new URL(BASE).host}`, [])).filter((t) => now - t < 3600_000);
   const budget = Math.max(0, PER_HOUR - history.length);
+  // Autosincronización sin presupuesto: no hace nada (ni registro, ni traducciones, ni carga en la BD)
+  if (budget === 0 && opts.source === "web") return { ok: true, skipped: "sin presupuesto esta hora", requests: 0, upserted: 0, log };
+  const [run] = await db.insert(schema.syncRuns).values({}).returning();
   const client = new LL2Client(BASE, budget);
   say(`LL2 ${BASE} · presupuesto ${budget}/${PER_HOUR}`);
 

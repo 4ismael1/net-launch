@@ -11,7 +11,6 @@ import { Flag } from "@/components/ui/Flag";
 import { countryName } from "@/lib/format";
 import { SatLive } from "@/components/orbit/SatLive";
 import { OrbitViewer } from "@/components/orbit/OrbitViewer";
-import { LocalTime } from "@/components/launch/LocalTime";
 
 const ROLES: Record<string, string> = {
   Commander: "Comandante",
@@ -30,7 +29,7 @@ const hours = (iso: string | null) => { const m = iso && /T(?:(\d+)H)?(?:(\d+)M)
 /** NORAD de cada estación para calcular su posición (ISS 25544 · Tiangong/CSS 48274). */
 const noradOf = (name: string) => (/international space station|\bISS\b/i.test(name) ? 25544 : /tiangong|\bCSS\b/i.test(name) ? 48274 : null);
 
-export function InSpace({ stations, astronauts, gp, at }: { stations: Station[]; astronauts: Astronaut[]; gp: OMM[]; at: number }) {
+export function InSpace({ stations, astronauts, gp }: { stations: Station[]; astronauts: Astronaut[]; gp: OMM[]; at?: number }) {
   const now = useNow();
   const withGp = useMemo(() => stations.map((s) => ({ s, omm: gp.find((o) => o.NORAD_CAT_ID === noradOf(s.name)) ?? null })), [stations, gp]);
   const [sel, setSel] = useState(0);
@@ -85,10 +84,7 @@ export function InSpace({ stations, astronauts, gp, at }: { stations: Station[];
             </button>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-fg-dim">
-          Tripulación y estaciones (Launch Library 2): actualizado <LocalTime date={new Date(at)} mode="relative" /> · se renuevan cada 3 h porque cambian poco.
-          Las posiciones, en cambio, se calculan en vivo. Toca una cara para ver su ficha.
-        </p>
+        <p className="mt-3 text-[11px] text-fg-dim">Fuente: Launch Library 2 · posiciones calculadas en vivo · toca una cara para ver su ficha.</p>
       </section>
 
       {/* Selector de estación */}
