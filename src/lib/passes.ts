@@ -52,3 +52,17 @@ export function computePasses(rec: SatRec, obs: { lat: number; lon: number }, op
   if (cur) out.push(cur);
   return out;
 }
+
+/** Trayectoria de un paso en el cielo del observador (elevación/acimut cada `stepS` segundos). */
+export function passTrack(rec: SatRec, obs: { lat: number; lon: number }, from: number, to: number, stepS = 10) {
+  const observer = { latitude: degreesToRadians(obs.lat), longitude: degreesToRadians(obs.lon), height: 0 };
+  const out: { t: number; el: number; az: number }[] = [];
+  for (let t = from - 60_000; t <= to + 60_000; t += stepS * 1000) {
+    const d = new Date(t);
+    const pv = propagate(rec, d);
+    if (!pv?.position || typeof pv.position === "boolean") continue;
+    const la = ecfToLookAngles(observer, eciToEcf(pv.position, gstime(d)));
+    out.push({ t, el: (la.elevation * 180) / Math.PI, az: ((la.azimuth * 180) / Math.PI + 360) % 360 });
+  }
+  return out;
+}

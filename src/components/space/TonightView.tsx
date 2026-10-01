@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { LocateFixed, Loader2, MapPin, Eye, Satellite as SatIcon } from "lucide-react";
+import { LocateFixed, Loader2, MapPin, Eye, Satellite as SatIcon, ArrowUpRight, Telescope } from "lucide-react";
 import { Body, Observer, SearchRiseSet, SearchAltitude, MoonPhase, Illumination, Equator, Horizon } from "astronomy-engine";
 import { json2satrec, type SatRec } from "@/lib/sgp4";
-import { computePasses, dir, type Pass } from "@/lib/passes";
+import { computePasses, dir, passTrack, type Pass } from "@/lib/passes";
 import type { OMM } from "@/lib/orbit";
 import { useNow } from "@/lib/hooks/client";
+import { splitCountdown } from "@/lib/format";
 
 type Obs = { lat: number; lon: number; label: string; mine: boolean };
 const DEFAULT: Obs = { lat: 6.2442, lon: -75.5812, label: "Medellín", mine: false };
@@ -151,6 +152,22 @@ export function TonightView({ sats }: { sats: OMM[] }) {
     return new Date(pick ?? def);
   }, [night, pick, live]);
 
+  // Paso elegido (por defecto el próximo de una estación tripulada, o el próximo visible) y su trayectoria en el cielo
+  const [selKey, setSelKey] = useState<string | null>(null);
+  const upcomingPasses = useMemo(() => (shownPasses?.list ?? []).filter((p) => p.end.getTime() > (live ?? 0)), [shownPasses, live]);
+  // Protagonista: una estación tripulada si pasa; si no, el paso más alto (los bajos cuestan de ver)
+  const hero = useMemo(
+    () => upcomingPasses.find((p) => p.norad === 25544 || p.norad === 48274) ?? upcomingPasses.reduce<(typeof upcomingPasses)[number] | null>((m, p) => (!m || p.maxEl > m.maxEl ? p : m), null),
+    [upcomingPasses],
+  );
+  const selPass = (selKey && shownPasses?.list.find((p) => pkey(p) === selKey)) || null;
+  const track = useMemo(() => {
+    if (!selPass) return null;
+    const r = recs.find((x) => x.norad === selPass.norad);
+    return r ? { name: prettyName(selPass.name), pts: passTrack(r.rec, obs, selPass.start.getTime(), selPass.end.getTime(), 8) } : null;
+  }, [selPass, recs, obs]);
+  const choose = (p: Pass & { norad: number }) => { setSelKey(pkey(p)); setPick(p.peak.getTime()); };
+
   const locate = () => {
     if (!navigator.geolocation) { setGeoErr("Tu navegador no permite la ubicación."); return; }
     setLocating(true);
@@ -186,6 +203,9 @@ export function TonightView({ sats }: { sats: OMM[] }) {
         {geoErr && <p className="w-full text-xs text-failure">{geoErr}</p>}
         <p className="w-full text-[11px] text-fg-dim">La ubicación se usa solo en tu navegador para calcular el cielo; no se envía a ningún servidor.</p>
       </div>
+
+      {/* Próximo paso visible */}
+      {hero && live !== null && <PassHero p={hero} now={live} onShow={() => choose(hero)} />}
 
       {/* Resumen de la noche */}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-4">
@@ -230,10 +250,10 @@ export function TonightView({ sats }: { sats: OMM[] }) {
         {/* Cúpula */}
         <section className="rounded-lg border border-line bg-surface">
           <header className="flex items-center justify-between border-b border-line px-4 py-3">
-            <h2 className="label !text-fg-muted">El cielo a las {hm(domeT)}</h2>
-            {pick !== null && <button onClick={() => setPick(null)} className="text-xs text-fg-muted hover:text-fg">Volver a ahora</button>}
+            <h2 className="label !text-fg-muted">El cielo a las {hm(domeT)}{track && <span className="!text-accent"> · {track.name}</span>}</h2>
+            {(pick !== null || track) && <button onClick={() => { setPick(null); setSelKey(null); }} className="text-xs text-fg-muted hover:text-fg">Volver a ahora</button>}
           </header>
-          <Dome o={o} t={domeT} />
+          <Dome o={o} t={domeT} track={track} />
           <p className="border-t border-line px-4 py-2.5 text-[11px] text-fg-dim">Mirando hacia arriba: el centro es el cenit y el borde, el horizonte. Norte arriba, este a la izquierda.</p>
         </section>
 
@@ -270,13 +290,16 @@ export function TonightView({ sats }: { sats: OMM[] }) {
                   const crewed = p.norad === 25544 || p.norad === 48274;
                   const past = live !== null && p.end.getTime() < live;
                   return (
-                    <li key={`${p.norad}-${p.start.getTime()}`} className={clsx("flex items-center gap-3 px-4 py-2.5", past && "opacity-45")}>
-                      <span className="num w-12 shrink-0 text-fg">{hm(p.start)}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5 truncate">{crewed && <SatIcon className="size-3.5 shrink-0 text-accent" />}<Link href={`/satelites/${p.norad}`} className="truncate hover:underline">{prettyName(p.name)}</Link></span>
-                        <span className="block text-[11px] text-fg-dim">De {dir(p.azStart)} a {dir(p.azEnd)} · {Math.max(1, Math.round((p.end.getTime() - p.start.getTime()) / 60_000))} min</span>
-                      </span>
-                      <span className="num shrink-0 text-xs text-fg-muted" title="Elevación máxima">{Math.round(p.maxEl)}°</span>
+                    <li key={pkey(p)} className={clsx("group flex items-center transition-colors", past && "opacity-45", selKey === pkey(p) ? "bg-accent-soft" : "hover:bg-surface-2")}>
+                      <button onClick={() => choose(p)} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left">
+                        <span className="num w-12 shrink-0 text-fg">{hm(p.start)}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5 truncate">{crewed && <SatIcon className="size-3.5 shrink-0 text-accent" />}<span className="truncate">{prettyName(p.name)}</span></span>
+                          <span className="block text-[11px] text-fg-dim">De {dir(p.azStart)} a {dir(p.azEnd)} · {Math.max(1, Math.round((p.end.getTime() - p.start.getTime()) / 60_000))} min</span>
+                        </span>
+                        <span className="num shrink-0 text-xs text-fg-muted" title="Elevación máxima">{Math.round(p.maxEl)}°</span>
+                      </button>
+                      <Link href={`/satelites/${p.norad}`} className="mr-2 rounded p-1.5 text-fg-dim opacity-0 transition-opacity group-hover:opacity-100 hover:text-fg focus:opacity-100" aria-label="Ficha del satélite"><ArrowUpRight className="size-3.5" /></Link>
                     </li>
                   );
                 })}
@@ -290,6 +313,7 @@ export function TonightView({ sats }: { sats: OMM[] }) {
   );
 }
 
+const pkey = (p: { norad: number; start: Date }) => `${p.norad}-${p.start.getTime()}`;
 const prettyName = (n: string) => (/^ISS \(ZARYA\)/.test(n) ? "Estación Espacial Internacional" : /^CSS \(TIANHE\)/.test(n) ? "Estación Tiangong" : n);
 
 function moonInterval(o: Observer, night: ReturnType<typeof nightOf>): [Date, Date] | null {
@@ -324,7 +348,41 @@ function MoonIcon({ phase, size = 40 }: { phase: number; size?: number }) {
   );
 }
 
-function Dome({ o, t }: { o: Observer; t: Date }) {
+type Track = { name: string; pts: { t: number; el: number; az: number }[] };
+
+function PassHero({ p, now, onShow }: { p: Pass & { name: string; norad: number }; now: number; onShow: () => void }) {
+  const startMs = p.start.getTime() - now, inProgress = startMs <= 0;
+  const cd = splitCountdown(Math.max(0, startMs));
+  const crewed = p.norad === 25544 || p.norad === 48274;
+  const parts: [number, string][] = cd.d ? [[cd.d, "d"], [cd.h, "h"], [cd.m, "min"]] : [[cd.h, "h"], [cd.m, "min"], [cd.s, "s"]];
+  return (
+    <section className="relative overflow-hidden rounded-lg border border-line bg-surface">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_85%_0%,#ff5b1f1a,transparent_60%)]" />
+      <div className="relative grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-6">
+        <div className="min-w-0">
+          <p className="label flex items-center gap-1.5 !text-accent">{crewed ? <SatIcon className="size-3.5" /> : <Eye className="size-3.5" />} {inProgress ? "Pasando ahora sobre ti" : "Próximo paso visible"}</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">{prettyName(p.name)}</h2>
+          <p className="mt-1.5 text-sm text-fg-muted">
+            A las <span className="num text-fg">{hm(p.start)}</span>: aparece por el <span className="text-fg">{dir(p.azStart)}</span>, sube hasta <span className="num text-fg">{Math.round(p.maxEl)}°</span> hacia el {dir(p.azPeak)} y se pierde por el {dir(p.azEnd)} · {Math.max(1, Math.round((p.end.getTime() - p.start.getTime()) / 60_000))} min
+          </p>
+          <button onClick={onShow} className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-md bg-fg px-3.5 text-sm font-medium text-bg transition-opacity hover:opacity-90"><Telescope className="size-4" /> Ver su recorrido en el cielo</button>
+        </div>
+        {!inProgress && (
+          <div className="num flex items-end gap-2" aria-label="Cuenta regresiva">
+            {parts.map(([v, l], i) => (
+              <span key={l} className="flex items-end gap-2">
+                {i > 0 && <span className="mb-4 text-2xl text-fg-dim">:</span>}
+                <span className="flex flex-col items-center"><span className="text-4xl leading-none md:text-5xl">{String(v).padStart(2, "0")}</span><span className="label mt-1.5">{l}</span></span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Dome({ o, t, track }: { o: Observer; t: Date; track?: Track | null }) {
   const S = 400, C = S / 2, R = 180;
   const xy = (alt: number, az: number) => {
     const r = ((90 - alt) / 90) * R, a = (az * Math.PI) / 180;
@@ -357,6 +415,7 @@ function Dome({ o, t }: { o: Observer; t: Date }) {
           </g>
         );
       })}
+      {track && <PassPath track={track} t={t} xy={xy} />}
       {bodies.map((b) => {
         const [x, y] = xy(Math.max(0, b.alt), b.az);
         const fill = b.kind === "sun" ? "#ffb347" : b.kind === "moon" ? "#ecebe6" : "#ff8a5c";
@@ -368,5 +427,26 @@ function Dome({ o, t }: { o: Observer; t: Date }) {
         );
       })}
     </svg>
+  );
+}
+
+function PassPath({ track, t, xy }: { track: Track; t: Date; xy: (alt: number, az: number) => readonly [number, number] }) {
+  const vis = track.pts.filter((p) => p.el > 0);
+  if (vis.length < 2) return null;
+  const d = vis.map((p, i) => { const [x, y] = xy(p.el, p.az); return `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`; }).join(" ");
+  const [ex, ey] = xy(vis[vis.length - 1].el, vis[vis.length - 1].az);
+  const [px, py] = xy(vis[vis.length - 2].el, vis[vis.length - 2].az);
+  const a = Math.atan2(ey - py, ex - px);
+  const peak = vis.reduce((m, p) => (p.el > m.el ? p : m), vis[0]);
+  const [kx, ky] = xy(peak.el, peak.az);
+  const cur = track.pts.reduce((m, p) => (Math.abs(p.t - t.getTime()) < Math.abs(m.t - t.getTime()) ? p : m), track.pts[0]);
+  const [nx, ny] = xy(Math.max(0, cur.el), cur.az);
+  return (
+    <g>
+      <path d={d} fill="none" stroke="var(--color-accent)" strokeWidth={2.5} strokeLinecap="round" />
+      <path d={`M${ex} ${ey} l${-10 * Math.cos(a - 0.5)} ${-10 * Math.sin(a - 0.5)} M${ex} ${ey} l${-10 * Math.cos(a + 0.5)} ${-10 * Math.sin(a + 0.5)}`} stroke="var(--color-accent)" strokeWidth={2.5} strokeLinecap="round" fill="none" />
+      <text x={kx + 8} y={ky - 8} fontSize={11.5} fontWeight={600} fill="var(--color-accent)">{track.name}</text>
+      {cur.el > 0 && <circle cx={nx} cy={ny} r={5} fill="#fff" stroke="var(--color-accent)" strokeWidth={2} />}
+    </g>
   );
 }
