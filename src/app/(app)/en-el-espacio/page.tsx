@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
 import { getInSpace } from "@/lib/data/space";
 import { getStationsGP } from "@/lib/orbit";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -22,7 +21,7 @@ export default function Page() {
 }
 
 async function Content() {
-  await connection(); // al visitar: estaciones y elementos orbitales actuales
+  // Servida desde caché y renovada en segundo plano: la visita no espera a CelesTrak ni a la BD
   const [data, gp] = await Promise.all([getInSpace(), getStationsGP()]);
   if (!data) return <Card><Empty>Los datos se cargarán en la próxima sincronización.</Empty></Card>;
   return <InSpace stations={data.stations} astronauts={data.astronauts} gp={gp} at={data.at} />;

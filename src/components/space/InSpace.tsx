@@ -9,8 +9,11 @@ import type { OMM } from "@/lib/orbit";
 import { useNow } from "@/lib/hooks/client";
 import { Flag } from "@/components/ui/Flag";
 import { countryName } from "@/lib/format";
-import { SatLive } from "@/components/orbit/SatLive";
-import { OrbitViewer } from "@/components/orbit/OrbitViewer";
+import dynamic from "next/dynamic";
+
+const Skel = ({ h }: { h: number }) => <div style={{ height: h }} className="w-full animate-pulse bg-surface-2" />;
+const SatLive = dynamic(() => import("@/components/orbit/SatLive").then((m) => m.SatLive), { ssr: false, loading: () => <Skel h={560} /> });
+const OrbitViewer = dynamic(() => import("@/components/orbit/OrbitViewer").then((m) => m.OrbitViewer), { ssr: false, loading: () => <Skel h={430} /> });
 
 const ROLES: Record<string, string> = {
   Commander: "Comandante",
@@ -87,121 +90,97 @@ export function InSpace({ stations, astronauts, gp }: { stations: Station[]; ast
         <p className="mt-3 text-[11px] text-fg-dim">Fuente: Launch Library 2 · posiciones calculadas en vivo · toca una cara para ver su ficha.</p>
       </section>
 
-      {/* Selector de estación */}
-      {withGp.length > 0 && (
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Estaciones">
-          {withGp.map(({ s }, i) => (
-            <button key={s.id} role="tab" aria-selected={sel === i} onClick={() => setSel(i)}
-              className={clsx("flex items-center gap-3 rounded-lg border px-4 py-2.5 text-left transition-colors", sel === i ? "border-accent/50 bg-surface-2" : "border-line bg-surface hover:border-line-strong")}>
-              {s.imageUrl && (
+      {/* Las estaciones alrededor de la Tierra + ficha de la estación elegida */}
+      {current && (
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+          <section className="overflow-hidden rounded-lg border border-line bg-surface">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2.5">
+              <div className="flex gap-1.5" role="tablist" aria-label="Estaciones">
+                {withGp.map(({ s }, i) => (
+                  <button key={s.id} role="tab" aria-selected={sel === i} onClick={() => setSel(i)}
+                    className={clsx("rounded-md px-3 py-1.5 text-[13px] transition-colors", sel === i ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")}>
+                    {s.name.replace(/ space station$/i, "")}
+                  </button>
+                ))}
+              </div>
+              <Link href="/satelites?g=stations" className="text-xs text-fg-muted hover:text-fg">Explorador de satélites →</Link>
+            </header>
+            {gp.length > 0 ? <OrbitViewer objects={gp} height={430} /> : <p className="p-6 text-sm text-fg-dim">No hay elementos orbitales disponibles ahora mismo.</p>}
+          </section>
+
+          <section className="flex flex-col overflow-hidden rounded-lg border border-line bg-surface">
+            <div className="relative h-28 shrink-0 bg-surface-3">
+              {current.s.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={s.imageUrl} alt="" className="size-9 rounded-md object-cover" />
+                <img src={current.s.imageUrl} alt="" className="size-full object-cover opacity-70" />
               )}
-              <span>
-                <span className="block text-sm font-medium">{s.name}</span>
-                <span className="text-xs text-fg-dim">{astronauts.filter((a) => a.stationId === s.id).length || s.crew || 0} a bordo · {s.orbit ?? "—"}</span>
-              </span>
-            </button>
-          ))}
+              <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent" />
+              <div className="absolute bottom-2.5 left-4">
+                <p className="label !text-fg-muted">{current.s.orbit}</p>
+                <h2 className="text-lg font-semibold">{current.s.name}</h2>
+              </div>
+            </div>
+            {exp && (
+              <div className="border-b border-line px-4 py-3">
+                <p className="label mb-1.5 flex items-center gap-1.5"><Timer className="size-3.5" /> {exp.name} · en curso</p>
+                <div className="flex items-end gap-1" role="timer" aria-label="Tiempo de la expedición">
+                  {[[dd === null ? "--" : String(dd), "días"], [p2(hh), "h"], [p2(mm), "min"], [p2(ss), "s"]].map(([v, l], i) => (
+                    <div key={l} className="flex items-end gap-1">
+                      {i > 0 && <span className="num mb-3 text-lg text-fg-dim">:</span>}
+                      <div className="flex flex-col items-center"><span className="num text-2xl leading-none">{v}</span><span className="label mt-1">{l}</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <dl className="grid grid-cols-3 gap-px border-b border-line bg-line text-sm">
+              <div className="bg-surface p-3"><dt className="label">A bordo</dt><dd className="num mt-1 text-xl">{crew.length || current.s.crew || 0}</dd></div>
+              <div className="bg-surface p-3"><dt className="label">Acopladas</dt><dd className="num mt-1 text-xl">{current.s.docked ?? "—"}</dd></div>
+              <div className="bg-surface p-3"><dt className="label">Desde</dt><dd className="num mt-1 text-xl">{current.s.founded ? new Date(current.s.founded).getUTCFullYear() : "—"}</dd></div>
+            </dl>
+            {current.s.ports.some((pt) => pt.vehicle) && (
+              <div className="border-b border-line px-4 py-3">
+                <p className="label mb-1.5">Naves acopladas</p>
+                <ul className="space-y-1 text-sm">
+                  {current.s.ports.filter((pt) => pt.vehicle).map((pt) => (
+                    <li key={pt.name} className="flex items-center gap-2"><span className="size-1.5 shrink-0 rounded-full bg-accent" /><span className="truncate">{pt.vehicle}</span><span className="truncate text-xs text-fg-dim">· {pt.name}</span></li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {current.s.owners.length > 0 && (
+              <p className="mt-auto px-4 py-3 text-xs text-fg-muted"><span className="label mr-2">Operan</span>
+                {current.s.owners.map((o, i) => <span key={o.id}>{i > 0 && ", "}<Link href={`/organizaciones/${o.id}`} className="hover:text-fg hover:underline">{o.name}</Link></span>)}
+              </p>
+            )}
+          </section>
         </div>
       )}
 
-      {current && (
-        <>
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-            {/* Ficha de la estación */}
-            <section className="overflow-hidden rounded-lg border border-line bg-surface">
-              <div className="relative h-44 bg-surface-3">
-                {current.s.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={current.s.imageUrl} alt="" className="size-full object-cover opacity-75" />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent" />
-                <div className="absolute bottom-3 left-4">
-                  <p className="label !text-fg-muted">{current.s.orbit}</p>
-                  <h2 className="text-xl font-semibold">{current.s.name}</h2>
-                </div>
-              </div>
-              {exp && (
-                <div className="border-b border-line p-4">
-                  <p className="label mb-2 flex items-center gap-1.5"><Timer className="size-3.5" /> {exp.name} · en curso</p>
-                  <div className="flex items-end gap-1" role="timer" aria-label="Tiempo de la expedición">
-                    {[[dd === null ? "--" : String(dd), "días"], [p2(hh), "h"], [p2(mm), "min"], [p2(ss), "s"]].map(([v, l], i) => (
-                      <div key={l} className="flex items-end gap-1">
-                        {i > 0 && <span className="num mb-3 text-xl text-fg-dim">:</span>}
-                        <div className="flex flex-col items-center"><span className="num text-3xl leading-none">{v}</span><span className="label mt-1">{l}</span></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <dl className="grid grid-cols-3 gap-px border-b border-line bg-line text-sm">
-                <div className="bg-surface p-3"><dt className="label">A bordo</dt><dd className="num mt-1 text-xl">{crew.length || current.s.crew || 0}</dd></div>
-                <div className="bg-surface p-3"><dt className="label">Naves acopladas</dt><dd className="num mt-1 text-xl">{current.s.docked ?? "—"}</dd></div>
-                <div className="bg-surface p-3"><dt className="label">En órbita desde</dt><dd className="num mt-1 text-xl">{current.s.founded ? new Date(current.s.founded).getUTCFullYear() : "—"}</dd></div>
-              </dl>
-              {current.s.ports.length > 0 && (
-                <div className="border-b border-line p-4">
-                  <p className="label mb-2">Puertos de atraque</p>
-                  <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
-                    {current.s.ports.map((pt) => (
-                      <li key={pt.name} className="flex items-center gap-2">
-                        <span className={clsx("size-2 shrink-0 rounded-full", pt.vehicle ? "bg-accent" : "bg-line-strong")} />
-                        <span className="truncate text-fg-muted">{pt.name}</span>
-                        {pt.vehicle && <span className="truncate text-fg">· {pt.vehicle}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {current.s.owners.length > 0 && (
-                <p className="p-4 text-sm text-fg-muted"><span className="label mr-2">Operan</span>
-                  {current.s.owners.map((o, i) => <span key={o.id}>{i > 0 && ", "}<Link href={`/organizaciones/${o.id}`} className="hover:text-fg hover:underline">{o.name}</Link></span>)}
-                </p>
-              )}
-            </section>
-
-            {/* Tripulación */}
-            <section className="rounded-lg border border-line bg-surface">
-              <header className="flex items-center justify-between border-b border-line px-4 py-3">
-                <h2 className="label flex items-center gap-1.5 !text-fg-muted"><Users className="size-3.5" /> Tripulación a bordo</h2>
-                <span className="num text-xs text-fg-dim">{crew.length}</span>
-              </header>
-              {crew.length === 0 ? (
-                <p className="p-6 text-sm text-fg-dim">La fuente no detalla la tripulación de esta estación en este momento.</p>
-              ) : (
-                <ul className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2">
-                  {crew.map((a) => <CrewCard key={a.id} a={a} onOpen={() => setPerson(a)} />)}
-                </ul>
-              )}
-            </section>
-          </div>
-
-          {/* Posición en vivo, traza y pasos */}
-          {current.omm ? (
-            <SatLive omm={current.omm} />
-          ) : (
-            <p className="rounded-lg border border-line bg-surface p-4 text-sm text-fg-dim">No hay elementos orbitales públicos para calcular la posición de esta estación.</p>
-          )}
-        </>
-      )}
-
-      {others.length > 0 && (
+      {/* Tripulación de la estación elegida (solo si la fuente la detalla) */}
+      {crew.length > 0 && (
         <section className="rounded-lg border border-line bg-surface">
-          <header className="border-b border-line px-4 py-3"><h2 className="label !text-fg-muted">También en el espacio</h2></header>
+          <header className="flex items-center justify-between border-b border-line px-4 py-3">
+            <h2 className="label flex items-center gap-1.5 !text-fg-muted"><Users className="size-3.5" /> Tripulación a bordo</h2>
+            <span className="num text-xs text-fg-dim">{crew.length}</span>
+          </header>
           <ul className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2 xl:grid-cols-3">
-            {others.map((a) => <CrewCard key={a.id} a={a} onOpen={() => setPerson(a)} />)}
+            {crew.map((a) => <CrewCard key={a.id} a={a} onOpen={() => setPerson(a)} />)}
           </ul>
         </section>
       )}
 
-      {gp.length > 0 && (
-        <section className="overflow-hidden rounded-lg border border-line bg-surface">
-          <header className="flex items-center justify-between border-b border-line px-4 py-3">
-            <h2 className="label !text-fg-muted">Las estaciones alrededor de la Tierra</h2>
-            <Link href="/satelites?g=stations" className="text-xs text-fg-muted hover:text-fg">Ver en el explorador de satélites →</Link>
+      {/* Posición en vivo, traza y pasos sobre ti */}
+      {current?.omm && <SatLive omm={current.omm} />}
+
+      {others.length > 0 && (
+        <section className="rounded-lg border border-line bg-surface">
+          <header className="border-b border-line px-4 py-3">
+            <h2 className="label !text-fg-muted">{crew.length > 0 || stations.some((st) => astronauts.some((a) => a.stationId === st.id)) ? "También en el espacio" : "Personas en órbita"}</h2>
           </header>
-          <OrbitViewer objects={gp} height={460} />
+          <ul className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2 xl:grid-cols-3">
+            {others.map((a) => <CrewCard key={a.id} a={a} onOpen={() => setPerson(a)} />)}
+          </ul>
         </section>
       )}
 
