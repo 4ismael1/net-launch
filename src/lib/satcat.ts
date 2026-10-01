@@ -6,6 +6,8 @@ export const SATCAT_URL = "https://celestrak.org/pub/satcat.csv";
 export type ObjType = "PAY" | "R/B" | "DEB" | "UNK";
 export const OBJ_TYPES: ObjType[] = ["PAY", "R/B", "DEB", "UNK"];
 export const OBJ_LABEL: Record<ObjType, string> = { PAY: "Cargas útiles", "R/B": "Etapas de cohete", DEB: "Fragmentos", UNK: "Sin identificar" };
+// Paleta categórica en orden fijo, validada sobre la superficie oscura (banda de luminosidad y daltonismo)
+export const TYPE_COLORS: Record<ObjType, string> = { PAY: "#f2551a", "R/B": "#2a9fb2", DEB: "#b98c25", UNK: "#d35f98" };
 
 export type Regime = "LEO" | "MEO" | "GEO" | "HEO" | "OTRA";
 export type SatcatSummary = {

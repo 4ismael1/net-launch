@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { cacheLife } from "next/cache";
 import { inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { translateBatch } from "@/lib/translate";
 
 const md5 = (t: string) => createHash("md5").update(t, "utf8").digest("hex");
 
@@ -57,4 +58,30 @@ export async function wikiEs(wikiUrl: string | null | undefined): Promise<WikiSu
   } catch {
     return null;
   }
+}
+
+/**
+ * Como translationsFor, pero traduce al momento lo que falte (Gemini) y lo guarda. Solo para contenidos
+ * diarios y cortos (p. ej. la imagen del día), siempre dentro de una función cacheada.
+ */
+export async function ensureEs(texts: (string | null | undefined)[]): Promise<Record<string, string>> {
+  const uniq = [...new Set(texts.filter((t): t is string => !!t && t.length > 12))];
+  if (!uniq.length) return {};
+  const byHash = new Map(uniq.map((t) => [md5(t), t]));
+  const rows = await db.select({ hash: schema.translations.hash, es: schema.translations.es }).from(schema.translations).where(inArray(schema.translations.hash, [...byHash.keys()]));
+  const out: Record<string, string> = {};
+  for (const r of rows) if (r.es) out[byHash.get(r.hash)!] = r.es;
+  const missing = uniq.filter((t) => !out[t]);
+  if (missing.length) {
+    try {
+      const tr = await translateBatch(missing);
+      if (tr) {
+        await db.insert(schema.translations).values(missing.map((t, i) => ({ hash: md5(t), src: t, es: tr[i] }))).onConflictDoNothing();
+        missing.forEach((t, i) => (out[t] = tr[i]));
+      }
+    } catch {
+      // sin traducción: se muestra el original
+    }
+  }
+  return out;
 }

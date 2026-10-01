@@ -19,8 +19,15 @@
 - [ ] Rotar la contraseña de Neon (quedó escrita en el chat) y actualizar `.env.local` y el secret
 - [ ] Cuentas futuras: MapTiler (satélite; poner `NEXT_PUBLIC_MAPTILER_KEY`), NASA API, PostHog, Sentry, Vercel (deploy)
 - [x] Gemini (clave en .env.local y en el secret de GitHub)
+- [x] OpenSky (cuenta gratuita; OPENSKY_CLIENT_ID/SECRET en .env.local y en Vercel). Rotar el secreto (quedó escrito en el chat)
 
 ## Bitácora
 - 2026-09-30 — F0: plan y verificación de APIs.
 - 2026-09-30 — F1: base de datos + sincronizador funcionando con lldev.
 - 2026-09-30 — F2–F6: interfaz completa navegable con datos reales; traducciones Gemini funcionando (150 textos → 418 misiones).
+- 2026-10-01 — Nuevos módulos: Programas, Reutilización, Astronautas, Naves (catálogos LL2 por páginas con cursor y reserva de 6 peticiones/h para lo urgente),
+  Población orbital (SATCAT semanal), Asteroides (JPL CAD), Más allá de la órbita (JPL Horizons cada 6 h, interpolado), Imagen del día (APOD traducida),
+  Esta noche (astronomy-engine + SGP4 en el navegador), Tráfico aéreo (OpenSky global cada ~100 s en caché remota + adsb.lol 5 s en la zona visible).
+  Textos en español: tabla `translations` (md5 → es) + resúmenes de Wikipedia ES. Corregidos: scroll bloqueado (Next conserva páginas ocultas → `HtmlFlag`),
+  "Ver en el mapa", pausa de los globos (preferencia compartida `net-globe-paused`).
+  Notas: con Cache Components las páginas visitadas quedan montadas y ocultas (React Activity): nada de selectores `:has()` globales ni estado inicializado solo en el montaje.

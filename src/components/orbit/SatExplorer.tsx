@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useStoredFlag } from "@/lib/hooks/client";
+import { GLOBE_PAUSED } from "./earth";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
@@ -42,7 +44,8 @@ export function SatExplorer({ groups, categories, featured }: {
   const [warn, setWarn] = useState<string | null>(null);
   const [icons, setIcons] = useState<Partial<Record<IconKind, string>>>({});
   const [legendOpen, setLegendOpen] = useState(false);
-  const [spin, setSpin] = useState(true);
+  const [paused, setPaused] = useStoredFlag(GLOBE_PAUSED);
+  const spin = !paused;
   const [warp, setWarp] = useState(1);
   const [simTime, setSimTime] = useState<number | null>(null);
 
@@ -98,7 +101,7 @@ export function SatExplorer({ groups, categories, featured }: {
     return () => clearInterval(iv);
   }, []);
   const changeWarp = (w: number) => { engine.current?.setWarp(w); setWarp(w); };
-  const toggleSpin = () => { const v = !spin; engine.current?.setAutoRotate(v); setSpin(v); };
+  const toggleSpin = () => setPaused(spin); // el motor escucha la preferencia guardada
 
   // Datos en vivo del seleccionado
   useEffect(() => {

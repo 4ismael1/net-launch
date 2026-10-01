@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Maximize2, Minus, Pause, Play, Plus } from "lucide-react";
-import { orbitControls, orbitPath, screenScale } from "./earth";
+import { GLOBE_PAUSED, orbitControls, orbitPath, screenScale } from "./earth";
+import { useStoredFlag } from "@/lib/hooks/client";
 import { drawIcon, iconFor, type IconKind } from "./satIcons";
 import { feature } from "topojson-client";
 import type { Topology } from "topojson-specification";
@@ -30,11 +31,12 @@ export function OrbitViewer({ objects, height = 460 }: { objects: OMM[]; height?
   const el = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState<Live[]>([]);
   const ctlRef = useRef<ReturnType<typeof orbitControls> | null>(null);
-  const [spin, setSpin] = useState(true);
+  const [paused, setPaused] = useStoredFlag(GLOBE_PAUSED);
+  const spin = !paused;
   function control(kind: "spin" | "in" | "out" | "reset") {
     const c = ctlRef.current;
+    if (kind === "spin") { setPaused(spin); return; } // todos los globos escuchan esta preferencia
     if (!c) return;
-    if (kind === "spin") { c.setAuto(!spin); setSpin(!spin); }
     else if (kind === "in") c.zoomBy(0.8);
     else if (kind === "out") c.zoomBy(1.25);
     else c.reset();

@@ -6,13 +6,12 @@ import type { GeoJSONSource, Map as MLMap } from "maplibre-gl";
 import { Crosshair, Eye, EyeOff, LocateFixed, Sun, Moon } from "lucide-react";
 import clsx from "clsx";
 import {
-  json2satrec, propagate, gstime, eciToGeodetic, eciToEcf, ecfToLookAngles, degreesLat, degreesLong,
-  degreesToRadians, jday, sunPos, shadowFraction, type SatRec,
+  json2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLong, jday, sunPos, shadowFraction, type SatRec,
 } from "@/lib/sgp4";
 import type { OMM } from "@/lib/orbit";
+import { computePasses, dir, type Pass } from "@/lib/passes";
 import { neutralizeBasemap, MAP_LOCALE } from "@/components/map/basemap";
 
-const AU = 149597870.7;
 const STYLE = process.env.NEXT_PUBLIC_MAPTILER_KEY
   ? `https://api.maptiler.com/maps/dataviz-dark/style.json?key=${process.env.NEXT_PUBLIC_MAPTILER_KEY}`
   : "https://tiles.openfreemap.org/styles/dark";
@@ -41,42 +40,6 @@ function groundTrack(rec: SatRec, from: Date, minutes: number, stepS = 30) {
     prev = s.lon;
   }
   return lines.filter((l) => l.length > 1);
-}
-
-type Pass = { start: Date; peak: Date; end: Date; maxEl: number; azStart: number; azEnd: number; visible: boolean };
-const DIRS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
-const dir = (az: number) => DIRS[Math.round(az / 45) % 8];
-
-/** Pasos sobre el observador (elevación > 10°). Visible = satélite iluminado y cielo oscuro (Sol < −6°). */
-function computePasses(rec: SatRec, obs: { lat: number; lon: number }, hours = 72): Pass[] {
-  const observer = { latitude: degreesToRadians(obs.lat), longitude: degreesToRadians(obs.lon), height: 0 };
-  const out: Pass[] = [];
-  let cur: Pass | null = null;
-  const now = Date.now();
-  for (let t = 0; t < hours * 3600; t += 20) {
-    const d = new Date(now + t * 1000);
-    const pv = propagate(rec, d);
-    if (!pv?.position || typeof pv.position === "boolean") continue;
-    const g = gstime(d);
-    const la = ecfToLookAngles(observer, eciToEcf(pv.position, g));
-    const el = (la.elevation * 180) / Math.PI, az = ((la.azimuth * 180) / Math.PI + 360) % 360;
-    if (el > 10) {
-      if (!cur) {
-        const sun = sunPos(jday(d)).rsun;
-        const sunEcf = eciToEcf({ x: sun.x * AU, y: sun.y * AU, z: sun.z * AU }, g);
-        const sunEl = (ecfToLookAngles(observer, sunEcf).elevation * 180) / Math.PI;
-        const lit = shadowFraction(sun, pv.position) < 0.5;
-        cur = { start: d, peak: d, end: d, maxEl: el, azStart: az, azEnd: az, visible: lit && sunEl < -6 };
-      }
-      if (el > cur.maxEl) { cur.maxEl = el; cur.peak = d; }
-      cur.end = d; cur.azEnd = az;
-    } else if (cur) {
-      out.push(cur);
-      cur = null;
-      if (out.length >= 10) break;
-    }
-  }
-  return out;
 }
 
 export function SatLive({ omm }: { omm: OMM }) {

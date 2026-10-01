@@ -35,10 +35,17 @@ export function buildEarth(scene: THREE.Scene) {
   return earth;
 }
 
+export const GLOBE_PAUSED = "net-globe-paused";
+
 /** Cámara orbital: arrastre, rueda, pellizco táctil, giro automático pausable y reencuadre. */
 export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera, dist: number) {
   let az = 0.6, el = 0.35, zoom = dist, maxZoom = dist * 2.5, home = dist;
-  let auto = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Pausa del giro: preferencia única y guardada, compartida por todos los globos (sobrevive a cambios de selección)
+  const paused = () => { try { return localStorage.getItem(GLOBE_PAUSED) === "1"; } catch { return false; } };
+  let auto = !window.matchMedia("(prefers-reduced-motion: reduce)").matches && !paused();
+  const onPref = () => { auto = !paused(); };
+  window.addEventListener(`net:${GLOBE_PAUSED}`, onPref);
+  window.addEventListener("storage", onPref);
   let dragging = false, px = 0, py = 0;
   const pointers = new Map<number, { x: number; y: number }>();
   let pinch = 0;
@@ -83,6 +90,8 @@ export function orbitControls(host: HTMLElement, camera: THREE.PerspectiveCamera
       camera.lookAt(0, 0, 0);
     },
     dispose() {
+      window.removeEventListener(`net:${GLOBE_PAUSED}`, onPref);
+      window.removeEventListener("storage", onPref);
       host.removeEventListener("pointerdown", down);
       host.removeEventListener("pointermove", move);
       host.removeEventListener("pointerup", up);

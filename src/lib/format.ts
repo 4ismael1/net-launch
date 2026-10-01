@@ -95,3 +95,20 @@ export function padName(name: string | null | undefined) {
   if (!name) return null;
   return /^unknown pad$/i.test(name.trim()) ? "Plataforma por confirmar" : name;
 }
+
+/** Duración en segundos → "1,2 años" / "34 días" / "5 h" */
+export function durLabel(s: number | null | undefined) {
+  if (!s) return "—";
+  const d = s / 86400;
+  if (d >= 365) return `${(Math.round((d / 365.25) * 10) / 10).toLocaleString("es")} años`;
+  if (d >= 1) return `${Math.round(d).toLocaleString("es")} días`;
+  return `${Math.max(1, Math.round(s / 3600))} h`;
+}
+
+/** Tamaño de un asteroide: diámetro medido o rango estimado por magnitud absoluta */
+export function sizeLabel(r: { diamKnown: number | null; diam: [number, number] | null }) {
+  const f = (m: number) => (m >= 1000 ? `${(m / 1000).toLocaleString("es", { maximumFractionDigits: 1 })} km` : `${Math.round(m)} m`);
+  if (r.diamKnown) return f(r.diamKnown);
+  if (!r.diam) return "tamaño desconocido";
+  return `${f(r.diam[0])}–${f(r.diam[1])}`;
+}
